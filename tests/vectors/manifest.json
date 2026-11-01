@@ -1,0 +1,99 @@
+{
+ "readme.md": {
+  "sha256": "7f872f15ccd7915b4cb9da5e120436bee99f2968b87cbd072c68a984fdc1e59b",
+  "c3": {
+   "file": "readme.md.c3.mxz",
+   "block_size": 0,
+   "codec": 3,
+   "sha256": "92249562ba4f1b753616b5ef598674b5aad27ed4c66fc1f746077f0e31eff472",
+   "info": "cm  size=17089 -> 5382 (31.5%)  format=2  engine=text  transform=none  primer=none  codec=3  version=23 [ee492c166f8d3132]  profile=text  blocks=1"
+  }
+ },
+ "mixz_py.txt": {
+  "sha256": "67fd6998ee86cafe80d84821c9e0d1299a8414114bba38843698077d67e7e29c",
+  "c3": {
+   "file": "mixz_py.txt.c3.mxz",
+   "block_size": 0,
+   "codec": 3,
+   "sha256": "cfbf3a0599d4c49f49c8c3f5a51a49e024eb886908ad64130edcb07dca32e26f",
+   "info": "cm  size=28649 -> 6738 (23.5%)  format=2  engine=text  transform=none  primer=none  codec=3  version=23 [ee492c166f8d3132]  profile=text  blocks=1"
+  },
+  "c3_blocks": {
+   "file": "mixz_py.txt.b8k.c3.mxz",
+   "block_size": 8192,
+   "codec": 3,
+   "sha256": "2dc5453654688789ac49b9cb894d8658fe3e54cd836d7f1860c20ce3d619863b",
+   "info": "cm  size=28649 -> 8256 (28.8%)  format=2  engine=text  transform=none  primer=none  codec=3  version=23 [ee492c166f8d3132]  profile=text  blocks=4"
+  }
+ },
+ "engine_c.txt": {
+  "sha256": "e39df926d64a5945d91101bb2a29c7a9b969e9d15c550e4cf05b832b1d0ac7d5",
+  "c3": {
+   "file": "engine_c.txt.c3.mxz",
+   "block_size": 0,
+   "codec": 3,
+   "sha256": "16bd22ad8d03755eb718d22424678c3e56d3049d80d9689c2ae52229c7148b89",
+   "info": "cm  size=30735 -> 6846 (22.3%)  format=2  engine=text  transform=none  primer=none  codec=3  version=23 [ee492c166f8d3132]  profile=text  blocks=1"
+  }
+ },
+ "synthetic_x86.bin": {
+  "sha256": "095c400116526be49cf7166becd981554c96c17904a0e4598ffdf2349e02cec4",
+  "c3": {
+   "file": "synthetic_x86.bin.c3.mxz",
+   "block_size": 0,
+   "codec": 3,
+   "sha256": "fce0f689952501234a80d515d8abf2d15e4dcaf635c6a54eb05c7074f1f35745",
+   "info": "cm  size=60064 -> 52712 (87.8%)  format=2  engine=binary  transform=x86-e8e9  primer=none  codec=3  version=33 [e70440966897b2fc]  profile=binary/x86  blocks=1"
+  }
+ },
+ "synthetic_rgb.png": {
+  "sha256": "67b6aa8b079cbfe052488c3078a502f3fff48abdba250b42f60accb3f1ac7cf4",
+  "c3": {
+   "file": "synthetic_rgb.png.c3.mxz",
+   "block_size": 0,
+   "codec": 3,
+   "sha256": "cc22de8dbeab9382f2c489a296a1fcbf656fcda9c14646fef6b0d1348206566f",
+   "info": "cm  size=18176 -> 15645 (86.1%)  format=2  engine=image  transform=png-recompress  primer=none  codec=3  version=35 [b90d2ef1412fd5f2]  profile=image/png  blocks=1"
+  }
+ },
+ "readme.md.gz": {
+  "sha256": "9a4cf7a3dd0b57ab43760f3d487192a71f1f7edf40beb3d1a3c2ab6266616e87",
+  "c3": {
+   "file": "readme.md.gz.c3.mxz",
+   "block_size": 0,
+   "codec": 3,
+   "sha256": "5315cd0e53ac48b1862be1040cd2d30007d96e63b51a1f254cf3eccba9a0bc16",
+   "info": "cm  size=6946 -> 5401 (77.8%)  format=2  engine=text  transform=gzip-recompress  primer=none  codec=3  version=23 [ee492c166f8d3132]  profile=text  blocks=1"
+  }
+ },
+ "zeros.bin": {
+  "sha256": "9192c25b734fcbadbe32dadc28089c60db0e39f90cc20ce2e5733f57261acc0c",
+  "c3": {
+   "file": "zeros.bin.c3.mxz",
+   "block_size": 0,
+   "codec": 3,
+   "sha256": "3b611e1f8e705498233a0524b9deb2ad3ad90ee5da2f4270ccdbe4b0f0b21b06",
+   "info": "cm  size=100000 -> 89 (0.1%)  format=2  engine=binary  transform=none  primer=none  codec=3  version=33 [e70440966897b2fc]  profile=binary  blocks=1"
+  }
+ },
+ "random.bin": {
+  "sha256": "b9367234a00080e26e9a2ce88acb87bd4f84329fa3a320fe7dbdafc3cbca44ca",
+  "c3": {
+   "file": "random.bin.c3.mxz",
+   "block_size": 0,
+   "codec": 3,
+   "sha256": "ccee5c87ffb7e172b09e62522f54c7e61b8592e21c8185d74917714f4427fa8f",
+   "info": "stored  size=5000  format=2"
+  }
+ },
+ "page.html": {
+  "sha256": "a366467ed363c354b3bce0da1dd515db9dddf96b73914ebbebad53c704ffa7d7",
+  "c3": {
+   "file": "page.html.c3.mxz",
+   "block_size": 0,
+   "codec": 3,
+   "sha256": "1a5a5f71e82bdd594bf2502e140451ec312722c911e8e2596cdffbc1d0248508",
+   "info": "cm  size=8059 -> 926 (11.5%)  format=2  engine=text  transform=none  primer=none  codec=3  version=23 [ee492c166f8d3132]  profile=text  blocks=1"
+  }
+ }
+}

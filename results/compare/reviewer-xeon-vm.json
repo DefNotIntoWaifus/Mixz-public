@@ -1,0 +1,201 @@
+{
+ "comment": "A reviewer's run of compare.py (adapted as tools/experiments/compare_reference.py) on an Intel Xeon VM, codec 3 with the development primers, one process at a time, wall-clock seconds. py and js are the harness quick tier (same file counts and bytes); json, web and prose are other subsets of the harness files; logs are the 16 Loghub samples. zpaq -m5 is the zpaq archiver (per file: one archive per file, with its journal overhead). 'paq8px_with_primer': paq8px -8 on mixz's primer followed by the kind's files joined, minus paq8px -8 on the primer alone; 'files' there is paq8px -8 on the files joined.",
+ "kinds": {
+  "py": {
+   "files": 38,
+   "bytes": 524286,
+   "size": {
+    "gzip -9": 119604,
+    "xz -9e": 114800,
+    "zstd -19": 113063,
+    "brotli -q11": 101811,
+    "mixz no primer": 89165,
+    "mixz": 70171,
+    "mixz bundle": 68756,
+    "zpaq -m5 (per file)": 134208,
+    "zpaq -m5 (one archive)": 79288,
+    "paq8px -8": 76170
+   },
+   "secs": {
+    "gzip -9": 0.03978776931762695,
+    "xz -9e": 1.6635541915893555,
+    "zstd -19": 0.27819204330444336,
+    "brotli -q11": 0.8280971050262451,
+    "mixz no primer": 1.3193891048431396,
+    "mixz no primer (decompress)": 1.199110984802246,
+    "mixz": 2.222928524017334,
+    "mixz (decompress)": 1.1369471549987793,
+    "mixz bundle": 0.9974753856658936,
+    "zpaq -m5 (per file)": 3.8278582096099854,
+    "zpaq -m5 (one archive)": 1.1573071479797363,
+    "paq8px -8": 112.21151685714722
+   }
+  },
+  "js": {
+   "files": 46,
+   "bytes": 524243,
+   "size": {
+    "gzip -9": 147651,
+    "xz -9e": 137052,
+    "zstd -19": 137469,
+    "brotli -q11": 126488,
+    "mixz no primer": 106783,
+    "mixz": 93344,
+    "mixz bundle": 85027,
+    "zpaq -m5 (per file)": 160523,
+    "zpaq -m5 (one archive)": 93972,
+    "paq8px -8": 88124
+   },
+   "secs": {
+    "gzip -9": 0.02876734733581543,
+    "xz -9e": 1.8656306266784668,
+    "zstd -19": 0.17895865440368652,
+    "brotli -q11": 0.9166977405548096,
+    "mixz no primer": 1.1058053970336914,
+    "mixz no primer (decompress)": 0.9252040386199951,
+    "mixz": 2.4421629905700684,
+    "mixz (decompress)": 1.4328908920288086,
+    "mixz bundle": 0.8187472820281982,
+    "zpaq -m5 (per file)": 4.3381102085113525,
+    "zpaq -m5 (one archive)": 1.3611009120941162,
+    "paq8px -8": 109.69804573059082
+   }
+  },
+  "json": {
+   "files": 7,
+   "bytes": 1953637,
+   "size": {
+    "gzip -9": 364698,
+    "xz -9e": 242428,
+    "zstd -19": 262102,
+    "brotli -q11": 230101,
+    "mixz no primer": 176820,
+    "mixz": 169517,
+    "mixz bundle": 164843,
+    "zpaq -m5 (per file)": 186536,
+    "zpaq -m5 (one archive)": 172949,
+    "paq8px -8": 128491
+   },
+   "secs": {
+    "gzip -9": 0.0826423168182373,
+    "xz -9e": 0.8293445110321045,
+    "zstd -19": 0.5687527656555176,
+    "brotli -q11": 3.132267475128174,
+    "mixz no primer": 2.861276149749756,
+    "mixz no primer (decompress)": 2.854560375213623,
+    "mixz": 4.5305540561676025,
+    "mixz (decompress)": 3.0365452766418457,
+    "mixz bundle": 1.6215286254882812,
+    "zpaq -m5 (per file)": 5.124001502990723,
+    "zpaq -m5 (one archive)": 4.262271165847778,
+    "paq8px -8": 265.047420501709
+   }
+  },
+  "web": {
+   "files": 185,
+   "bytes": 100292,
+   "size": {
+    "gzip -9": 58309,
+    "xz -9e": 70300,
+    "zstd -19": 57745,
+    "brotli -q11": 51679,
+    "mixz no primer": 52582,
+    "mixz": 33566,
+    "mixz bundle": 19610,
+    "zpaq -m5 (per file)": 250905,
+    "zpaq -m5 (one archive)": 26357,
+    "paq8px -8": 45757
+   },
+   "secs": {
+    "gzip -9": 0.005045413970947266,
+    "xz -9e": 6.024200677871704,
+    "zstd -19": 0.019804954528808594,
+    "brotli -q11": 0.29905128479003906,
+    "mixz no primer": 0.4041423797607422,
+    "mixz no primer (decompress)": 0.3340952396392822,
+    "mixz": 0.42656469345092773,
+    "mixz (decompress)": 0.32649898529052734,
+    "mixz bundle": 0.27226805686950684,
+    "zpaq -m5 (per file)": 12.474109649658203,
+    "zpaq -m5 (one archive)": 0.26944613456726074,
+    "paq8px -8": 114.26974940299988
+   }
+  },
+  "prose": {
+   "files": 43,
+   "bytes": 253082,
+   "size": {
+    "gzip -9": 80686,
+    "xz -9e": 78584,
+    "zstd -19": 76060,
+    "brotli -q11": 66473,
+    "mixz no primer": 61258,
+    "mixz": 50342,
+    "mixz bundle": 48369,
+    "zpaq -m5 (per file)": 108647,
+    "zpaq -m5 (one archive)": 54007,
+    "paq8px -8": 53817
+   },
+   "secs": {
+    "gzip -9": 0.016724824905395508,
+    "xz -9e": 1.5284128189086914,
+    "zstd -19": 0.09180521965026855,
+    "brotli -q11": 0.40207719802856445,
+    "mixz no primer": 0.4595375061035156,
+    "mixz no primer (decompress)": 0.40569067001342773,
+    "mixz": 2.9788734912872314,
+    "mixz (decompress)": 1.1331744194030762,
+    "mixz bundle": 0.4171457290649414,
+    "zpaq -m5 (per file)": 3.2642903327941895,
+    "zpaq -m5 (one archive)": 0.5759022235870361,
+    "paq8px -8": 65.17421841621399
+   }
+  },
+  "logs": {
+   "files": 16,
+   "bytes": 4458875,
+   "size": {
+    "gzip -9": 446369,
+    "xz -9e": 308468,
+    "zstd -19": 332756,
+    "brotli -q11": 307032,
+    "mixz no primer": 212018,
+    "mixz": 210339,
+    "mixz bundle": 210378,
+    "zpaq -m5 (per file)": 236944,
+    "zpaq -m5 (one archive)": 214126,
+    "paq8px -8": 159458
+   },
+   "secs": {
+    "gzip -9": 0.12273550033569336,
+    "xz -9e": 2.6844100952148438,
+    "zstd -19": 2.5579357147216797,
+    "brotli -q11": 8.42872405052185,
+    "mixz no primer": 5.787917613983154,
+    "mixz no primer (decompress)": 6.3272178173065186,
+    "mixz": 6.229168653488159,
+    "mixz (decompress)": 6.6439385414123535,
+    "mixz bundle": 6.856191635131836,
+    "zpaq -m5 (per file)": 11.287808418273926,
+    "zpaq -m5 (one archive)": 10.133541345596313,
+    "paq8px -8": 618.8809025287628
+   }
+  }
+ },
+ "paq8px_with_primer": {
+  "py": {
+   "bytes": 524286,
+   "primer": 98063,
+   "primer+files": 151316,
+   "files": 59328,
+   "with_primer": 53253
+  },
+  "json": {
+   "bytes": 1953637,
+   "primer": 94026,
+   "primer+files": 209580,
+   "files": 118460,
+   "with_primer": 115554
+  }
+ }
+}

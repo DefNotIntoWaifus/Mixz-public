@@ -1,0 +1,535 @@
+{
+ "comment": "Pinned test-data sources for the benchmark harness. Each source is downloaded once into the cache, checked against sha256, and only members matching the patterns of a kind are extracted. 'vm_split': member paths are Debian system paths (same layout as the Ubuntu VM that built the primers), so members in the VM's training half (tools/corpora.py) are dropped. Licenses are SPDX ids; test data is only measured, never used to build primers or minds. Dropped after measuring primer overlap (fetch.py --calibrate): botocore (median 45%), lodash (up to 90%), tango SVGs (median 27%). 'group': sources that count as one when balancing bytes (the three Kodak photos).",
+ "sources": [
+  {
+   "id": "django",
+   "url": "https://files.pythonhosted.org/packages/source/D/Django/Django-5.1.2.tar.gz",
+   "license": "BSD-3-Clause",
+   "kinds": {
+    "py": [
+     "Django-5.1.2/django/*.py"
+    ],
+    "prose": [
+     "Django-5.1.2/docs/*.txt"
+    ]
+   },
+   "sha256": "bd7376f90c99f96b643722eee676498706c9fd7dc759f55ebfaf2c08ebcdf4f0"
+  },
+  {
+   "id": "sympy",
+   "url": "https://files.pythonhosted.org/packages/source/s/sympy/sympy-1.13.3.tar.gz",
+   "license": "BSD-3-Clause",
+   "kinds": {
+    "py": [
+     "sympy-1.13.3/sympy/*.py"
+    ],
+    "prose": [
+     "sympy-1.13.3/doc/src/*.md",
+     "sympy-1.13.3/doc/src/*.rst"
+    ]
+   },
+   "sha256": "b27fd2c6530e0ab39e275fc9b683895367e51d5da91baa8d3d64db2565fec4d9"
+  },
+  {
+   "id": "networkx",
+   "url": "https://files.pythonhosted.org/packages/source/n/networkx/networkx-3.4.2.tar.gz",
+   "license": "BSD-3-Clause",
+   "kinds": {
+    "py": [
+     "networkx-3.4.2/networkx/*.py"
+    ]
+   },
+   "sha256": "307c3669428c5362aab27c8a1260aa8f47c4e91d3891f48be0141738d8d053e1"
+  },
+  {
+   "id": "sqlalchemy",
+   "url": "https://files.pythonhosted.org/packages/source/s/sqlalchemy/sqlalchemy-2.0.36.tar.gz",
+   "license": "MIT",
+   "kinds": {
+    "py": [
+     "sqlalchemy-2.0.36/lib/sqlalchemy/*.py"
+    ],
+    "prose": [
+     "sqlalchemy-2.0.36/doc/build/*.rst"
+    ]
+   },
+   "sha256": "7f2767680b6d2398aea7082e45a774b2b0767b5c8d8ffb9c8b683088ea9b29c5"
+  },
+  {
+   "id": "black",
+   "url": "https://files.pythonhosted.org/packages/source/b/black/black-24.10.0.tar.gz",
+   "license": "MIT",
+   "kinds": {
+    "py": [
+     "black-24.10.0/src/*.py"
+    ]
+   },
+   "sha256": "846ea64c97afe3bc677b761787993be4991810ecc7a4a937816dd6bddedc4875"
+  },
+  {
+   "id": "lua",
+   "url": "https://www.lua.org/ftp/lua-5.4.7.tar.gz",
+   "license": "MIT",
+   "kinds": {
+    "c": [
+     "lua-5.4.7/src/*.c",
+     "lua-5.4.7/src/*.h"
+    ]
+   },
+   "sha256": "9fbf5e28ef86c69858f6d3d34eccc32e911c1a28b4120ff3e84aaa70cfbf1e30"
+  },
+  {
+   "id": "musl",
+   "url": "https://musl.libc.org/releases/musl-1.2.5.tar.gz",
+   "license": "MIT",
+   "kinds": {
+    "c": [
+     "musl-1.2.5/include/*.h",
+     "musl-1.2.5/src/*.c",
+     "musl-1.2.5/src/*.h"
+    ]
+   },
+   "sha256": "a9a118bbe84d8764da0ea0d28b3ab3fae8477fc7e4085d90102b8596fc7c75e4"
+  },
+  {
+   "id": "curl",
+   "url": "https://curl.se/download/curl-8.10.1.tar.xz",
+   "license": "curl",
+   "kinds": {
+    "c": [
+     "curl-8.10.1/lib/*.c",
+     "curl-8.10.1/lib/*.h",
+     "curl-8.10.1/src/*.c",
+     "curl-8.10.1/src/*.h",
+     "curl-8.10.1/include/curl/*.h"
+    ]
+   },
+   "sha256": "73a4b0e99596a09fa5924a4fb7e4b995a85fda0d18a2c02ab9cf134bebce04ee"
+  },
+  {
+   "id": "d3",
+   "url": "https://registry.npmjs.org/d3/-/d3-7.9.0.tgz",
+   "license": "ISC",
+   "kinds": {
+    "js": [
+     "package/dist/*.js"
+    ]
+   },
+   "sha256": "7e36605710a2ba54846797c8c6d888911341b215ae53257dc32a49a0b824355e"
+  },
+  {
+   "id": "three",
+   "url": "https://registry.npmjs.org/three/-/three-0.169.0.tgz",
+   "license": "MIT",
+   "kinds": {
+    "js": [
+     "package/src/*.js",
+     "package/examples/jsm/*.js"
+    ]
+   },
+   "sha256": "c86d0937570fb425d981e156ddf919c43dbc45d4e91fd7c8dd0de56723b3ec71"
+  },
+  {
+   "id": "react-dom",
+   "url": "https://registry.npmjs.org/react-dom/-/react-dom-18.3.1.tgz",
+   "license": "MIT",
+   "kinds": {
+    "js": [
+     "package/cjs/*.js",
+     "package/umd/*.js"
+    ]
+   },
+   "sha256": "031d4427a99f2f3f6cac18bbbf308594a67e4f47d10f4896fdec446505b040e0"
+  },
+  {
+   "id": "vue",
+   "url": "https://registry.npmjs.org/vue/-/vue-3.5.12.tgz",
+   "license": "MIT",
+   "kinds": {
+    "js": [
+     "package/dist/*.js"
+    ]
+   },
+   "sha256": "ca13a1928f3c57c6b84f64c84c066e410f91c4f3c25ae61f5fce1557210b9927"
+  },
+  {
+   "id": "google-api-client",
+   "url": "https://files.pythonhosted.org/packages/source/g/google-api-python-client/google_api_python_client-2.149.0.tar.gz",
+   "license": "Apache-2.0",
+   "kinds": {
+    "json": [
+     "google_api_python_client-2.149.0/googleapiclient/discovery_cache/documents/*.json"
+    ]
+   },
+   "sha256": "b9d68c6b14ec72580d66001bd33c5816b78e2134b93ccc5cf8f624516b561750"
+  },
+  {
+   "id": "mdn-bcd",
+   "url": "https://github.com/mdn/browser-compat-data/archive/refs/tags/v5.6.10.tar.gz",
+   "license": "CC0-1.0",
+   "kinds": {
+    "json": [
+     "browser-compat-data-5.6.10/api/*.json",
+     "browser-compat-data-5.6.10/css/*.json",
+     "browser-compat-data-5.6.10/html/*.json",
+     "browser-compat-data-5.6.10/javascript/*.json"
+    ]
+   },
+   "sha256": "7840985f0806d2a8aa7d506f3f35cfdf4868f37e2650577f4e850bf0794a8d77"
+  },
+  {
+   "id": "natural-earth",
+   "url": "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/v5.1.2/geojson/ne_110m_admin_0_countries.geojson",
+   "license": "public-domain",
+   "kinds": {
+    "json": [
+     "ne_110m_admin_0_countries.geojson"
+    ]
+   },
+   "sha256": "6866c877d39cba9c357620878839b336d569f8c662d3cfab4cb1dbe2d39c977f"
+  },
+  {
+   "id": "pydocs-html",
+   "url": "https://www.python.org/ftp/python/doc/3.12.7/python-3.12.7-docs-html.tar.bz2",
+   "license": "PSF-2.0",
+   "kinds": {
+    "web": [
+     "python-3.12-docs-html/library/*.html",
+     "python-3.12-docs-html/reference/*.html",
+     "python-3.12-docs-html/_static/*.css"
+    ],
+    "png": [
+     "python-3.12-docs-html/_images/*.png"
+    ]
+   },
+   "sha256": "9f2792b63230a4ea5f68b800bca87707ce6c7e69da66e1610bc2385a7da9281a"
+  },
+  {
+   "id": "pydocs-text",
+   "url": "https://www.python.org/ftp/python/doc/3.12.7/python-3.12.7-docs-text.tar.bz2",
+   "license": "PSF-2.0",
+   "kinds": {
+    "prose": [
+     "python-3.12-docs-text/*.txt"
+    ]
+   },
+   "sha256": "04eaf9e30be56078b382d14779825aba02740eeca348106fe01704cb3c8e4d39"
+  },
+  {
+   "id": "bootstrap",
+   "url": "https://github.com/twbs/bootstrap/archive/refs/tags/v5.3.3.tar.gz",
+   "license": "MIT",
+   "kinds": {
+    "web": [
+     "bootstrap-5.3.3/dist/css/*.css",
+     "bootstrap-5.3.3/site/content/docs/5.3/examples/*.html"
+    ],
+    "png": [
+     "bootstrap-5.3.3/site/static/docs/5.3/assets/img/*.png",
+     "bootstrap-5.3.3/site/content/docs/5.3/examples/*.png"
+    ]
+   },
+   "sha256": "3809d5580cb4735087c445d52c5db1626aef9bab8b7f86d2644d1a2acab7e54b"
+  },
+  {
+   "id": "bootstrap-icons",
+   "url": "https://registry.npmjs.org/bootstrap-icons/-/bootstrap-icons-1.11.3.tgz",
+   "license": "MIT",
+   "kinds": {
+    "web": [
+     "package/icons/*.svg"
+    ]
+   },
+   "sha256": "c68c68dc483cc06c897873d2452e23d33f21865d205edc51349332313bdfdae5"
+  },
+  {
+   "id": "cldr",
+   "url": "https://unicode.org/Public/cldr/46/cldr-common-46.0.zip",
+   "license": "Unicode-3.0",
+   "kinds": {
+    "web": [
+     "common/main/*.xml",
+     "common/supplemental/*.xml"
+    ]
+   },
+   "sha256": "fbce9c2275862ad26668fb34783fe6c339f3d92ddfeb5a10a1775fb58181a15d"
+  },
+  {
+   "id": "tango",
+   "url": "http://tango.freedesktop.org/releases/tango-icon-theme-0.8.90.tar.gz",
+   "license": "public-domain",
+   "kinds": {
+    "png": [
+     "tango-icon-theme-0.8.90/32x32/*.png"
+    ]
+   },
+   "sha256": "6e98d8032d57d818acc907ec47e6a718851ff251ae7c29aafb868743eb65c88e"
+  },
+  {
+   "id": "canterbury",
+   "url": "https://corpus.canterbury.ac.nz/resources/cantrbry.tar.gz",
+   "license": "public-domain",
+   "comment": "only the three public-domain literary texts; the rest of the corpus has no stated license",
+   "kinds": {
+    "prose": [
+     "alice29.txt",
+     "asyoulik.txt",
+     "plrabn12.txt"
+    ]
+   },
+   "sha256": "f140e8a5b73d3f53198555a63bfb827889394a42f20825df33c810c3d5e3f8fb"
+  },
+  {
+   "id": "deb-manpages",
+   "url": "https://snapshot.debian.org/file/e3fde16a39479f9d2f2007490bc09b210bda6d7f",
+   "archive": "deb",
+   "license": "man-pages (per-page permissive licenses, see debian/copyright)",
+   "vm_split": true,
+   "kinds": {
+    "man": [
+     "usr/share/man/*.gz"
+    ]
+   },
+   "sha256": "91b7df0b4bd4e1a3b8ba5b229abd844e03f4c82c45ccb8c964a035190c29a501"
+  },
+  {
+   "id": "deb-manpages-dev",
+   "url": "https://snapshot.debian.org/file/f7a2b7d2a0f229aa076e32c0a980dff1aed9217f",
+   "archive": "deb",
+   "license": "man-pages (per-page permissive licenses, see debian/copyright)",
+   "vm_split": true,
+   "kinds": {
+    "man": [
+     "usr/share/man/*.gz"
+    ]
+   },
+   "sha256": "9de42b48394935236a31385e4bae816911cd20dc3f20250531964aec44082f63"
+  },
+  {
+   "id": "deb-busybox",
+   "url": "https://snapshot.debian.org/file/89b36263af159c87b9f373dd04a09acda42e7751",
+   "archive": "deb",
+   "license": "GPL-2.0-only",
+   "vm_split": true,
+   "kinds": {
+    "elf": [
+     "usr/bin/*",
+     "bin/*"
+    ]
+   },
+   "sha256": "ac5248c05c0df2e27f47274bc6b27f1568a2273706e29ba7c203ad37fd594ef9"
+  },
+  {
+   "id": "deb-lua5.4",
+   "url": "https://snapshot.debian.org/file/9b679e1d16bf8968457a813c25b936cd77934000",
+   "archive": "deb",
+   "license": "MIT",
+   "vm_split": true,
+   "kinds": {
+    "elf": [
+     "usr/bin/*"
+    ]
+   },
+   "sha256": "de9c1bd19d4c196fb34ce65ab9616d1764c3374c4354281e5c560a74579f9abd"
+  },
+  {
+   "id": "deb-liblua5.4-0",
+   "url": "https://snapshot.debian.org/file/3e01b2e2ffc4a48bd955b09269b2c15e35603c88",
+   "archive": "deb",
+   "license": "MIT",
+   "vm_split": true,
+   "kinds": {
+    "elf": [
+     "usr/lib/x86_64-linux-gnu/*.so*"
+    ]
+   },
+   "sha256": "1fdd567bcf2e27bdcb68fc53c10856d7f0ca2dd2d7896546ac789d6d80d894f2"
+  },
+  {
+   "id": "deb-sqlite3",
+   "url": "https://snapshot.debian.org/file/01f6bde0c64ca1da0a428549f977308c330e09c3",
+   "archive": "deb",
+   "license": "blessing",
+   "vm_split": true,
+   "kinds": {
+    "elf": [
+     "usr/bin/*"
+    ]
+   },
+   "sha256": "19cbedcb3949cda3237a0dc3d32cd9c3bf957aecf0f06c48bba4494597f4ae7c"
+  },
+  {
+   "id": "deb-libsqlite3-0",
+   "url": "https://snapshot.debian.org/file/9cad50c132f23668e53632430595e0388667bf77",
+   "archive": "deb",
+   "license": "blessing",
+   "vm_split": true,
+   "kinds": {
+    "elf": [
+     "usr/lib/x86_64-linux-gnu/*.so*"
+    ]
+   },
+   "sha256": "8976fc03e2280e4fb55d9bb52d2723a54a83284183684a6b27102934756a2be4"
+  },
+  {
+   "id": "deb-zstd",
+   "url": "https://snapshot.debian.org/file/68018e28d4afac4567e7ef0b4b86aa8cd888734d",
+   "archive": "deb",
+   "license": "BSD-3-Clause OR GPL-2.0-only",
+   "vm_split": true,
+   "kinds": {
+    "elf": [
+     "usr/bin/*"
+    ]
+   },
+   "sha256": "6da09b6aad171ef9b50d6a2bb4c62f756b3561aac5e05b452b80516223e5e0f5"
+  },
+  {
+   "id": "deb-libzstd1",
+   "url": "https://snapshot.debian.org/file/96dbb7ea8dced3367f661f31964693f4919c0f9a",
+   "archive": "deb",
+   "license": "BSD-3-Clause OR GPL-2.0-only",
+   "vm_split": true,
+   "kinds": {
+    "elf": [
+     "usr/lib/x86_64-linux-gnu/*.so*"
+    ]
+   },
+   "sha256": "2f6a2aeacfc925eba8b00ac9139bc4bfccf8cacb09eb93de067074b26948eef9"
+  },
+  {
+   "id": "deb-jq",
+   "url": "https://snapshot.debian.org/file/5e0d536432397284b3a8958427fd7bbcec581242",
+   "archive": "deb",
+   "license": "MIT",
+   "vm_split": true,
+   "kinds": {
+    "elf": [
+     "usr/bin/*"
+    ]
+   },
+   "sha256": "3d7550e4e954470fce6c56947f88670059a66477f88ac7d314a5a37ceb08dfd1"
+  },
+  {
+   "id": "deb-libjq1",
+   "url": "https://snapshot.debian.org/file/991bcbe261c6a827ef197d182ced8fbf0446374a",
+   "archive": "deb",
+   "license": "MIT",
+   "vm_split": true,
+   "kinds": {
+    "elf": [
+     "usr/lib/x86_64-linux-gnu/*.so*"
+    ]
+   },
+   "sha256": "dff0e1cd7c88d264895a8bbd86d60966910f5de981f8e571654c382bec16ef52"
+  },
+  {
+   "id": "deb-libonig5",
+   "url": "https://snapshot.debian.org/file/7a8e995387646dadeecbaa160a3585ee84b24705",
+   "archive": "deb",
+   "license": "BSD-2-Clause",
+   "vm_split": true,
+   "kinds": {
+    "elf": [
+     "usr/lib/x86_64-linux-gnu/*.so*"
+    ]
+   },
+   "sha256": "3abee130696244050500bcc7870e3b4cb82ddd87149ece3fd55010c3d4e1d18c"
+  },
+  {
+   "id": "jq-static",
+   "url": "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-amd64",
+   "license": "MIT",
+   "kinds": {
+    "elf": [
+     "jq-linux-amd64"
+    ]
+   },
+   "sha256": "5942c9b0934e510ee61eb3e30273f1b3fe2590df93933a93d7c58b81d19c8ff5"
+  },
+  {
+   "id": "ripgrep",
+   "url": "https://github.com/BurntSushi/ripgrep/releases/download/14.1.1/ripgrep-14.1.1-x86_64-unknown-linux-musl.tar.gz",
+   "license": "MIT OR Unlicense",
+   "kinds": {
+    "elf": [
+     "ripgrep-14.1.1-x86_64-unknown-linux-musl/rg"
+    ]
+   },
+   "sha256": "4cf9f2741e6c465ffdb7c26f38056a59e2a2544b51f7cc128ef28337eeae4d8e"
+  },
+  {
+   "id": "fzf",
+   "url": "https://github.com/junegunn/fzf/releases/download/v0.56.0/fzf-0.56.0-linux_amd64.tar.gz",
+   "license": "MIT",
+   "kinds": {
+    "elf": [
+     "fzf"
+    ]
+   },
+   "sha256": "7afad5dcc3e3a7cbaef577ec02c4dd90280e283bc16da99809498f75a5f18080"
+  },
+  {
+   "id": "sqlite-tools",
+   "url": "https://www.sqlite.org/2024/sqlite-tools-linux-x64-3470000.zip",
+   "license": "blessing",
+   "kinds": {
+    "elf": [
+     "sqlite3",
+     "sqldiff",
+     "sqlite3_analyzer",
+     "sqlite3_rsync"
+    ]
+   },
+   "sha256": "f095fdef1e8ed44ac1fbbd0b102a689535df81d7edc09bb451db84f21f90ad5a"
+  },
+  {
+   "id": "kodak01",
+   "url": "http://r0k.us/graphics/kodak/kodak/kodim01.png",
+   "license": "Kodak (released for unrestricted use)",
+   "kinds": {
+    "png": [
+     "kodim01.png"
+    ]
+   },
+   "sha256": "a56e27cbf5f843c048b6af1d6e090760e9c92fadba88b7dee0205918a37523bd",
+   "group": "kodak"
+  },
+  {
+   "id": "kodak05",
+   "url": "http://r0k.us/graphics/kodak/kodak/kodim05.png",
+   "license": "Kodak (released for unrestricted use)",
+   "kinds": {
+    "png": [
+     "kodim05.png"
+    ]
+   },
+   "sha256": "10349e963c5c813d327852f82c1795fa4148d69fedffc4c589bee458e3ac3d53",
+   "group": "kodak"
+  },
+  {
+   "id": "kodak23",
+   "url": "http://r0k.us/graphics/kodak/kodak/kodim23.png",
+   "license": "Kodak (released for unrestricted use)",
+   "kinds": {
+    "png": [
+     "kodim23.png"
+    ]
+   },
+   "sha256": "e3111a2fd4da24af15d6459ef9eacfe54106b38e27b4a21821b75c3f5d2d5baf",
+   "group": "kodak"
+  }
+ ],
+ "ref": [
+  {
+   "id": "silesia",
+   "url": "https://sun.aei.polsl.pl/~sdeor/corpus/silesia.zip",
+   "license": "unstated (research corpus)"
+  },
+  {
+   "id": "enwik8",
+   "url": "http://mattmahoney.net/dc/enwik8.zip",
+   "license": "CC-BY-SA-3.0 (Wikipedia text)"
+  }
+ ]
+}

@@ -1,0 +1,8 @@
+libmixz.so
+__pycache__/
+*.pyc
+*.mxz
+tools/experiments/*.so
+.venv/
+!tests/vectors/*.mxz
+results/harness/*/runs/

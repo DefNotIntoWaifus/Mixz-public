@@ -1,0 +1,844 @@
+{
+ "comment": "Pinned tuning data for plan step 6 (tools/tuner/data.py). Each source is either 'train' (the tuner searches presets on it) or 'valid' (a preset or sub-profile is accepted only on it), so the two never share a project; the benchmark test set (tools/harness) uses other projects again, and data.py also drops any file whose content is in the harness set. Files are filtered for primer overlap like the test set. Tuning data only decides settings; it is never shipped, never used to build primers or minds.",
+ "sources": [
+  {
+   "id": "tune-pandas",
+   "url": "https://files.pythonhosted.org/packages/source/p/pandas/pandas-2.2.3.tar.gz",
+   "license": "BSD-3-Clause",
+   "split": "train",
+   "kinds": {
+    "py": [
+     "pandas-2.2.3/pandas/*.py"
+    ]
+   },
+   "sha256": "4f18ba62b61d7e192368b84517265a99b4d7ee8912f8708660fb4a366cc82667"
+  },
+  {
+   "id": "tune-tornado",
+   "url": "https://files.pythonhosted.org/packages/source/t/tornado/tornado-6.4.1.tar.gz",
+   "license": "Apache-2.0",
+   "split": "train",
+   "kinds": {
+    "py": [
+     "tornado-6.4.1/tornado/*.py"
+    ]
+   },
+   "sha256": "92d3ab53183d8c50f8204a51e6f91d18a15d5ef261e84d452800d4ff6fc504e9"
+  },
+  {
+   "id": "tune-rich",
+   "url": "https://files.pythonhosted.org/packages/source/r/rich/rich-13.9.2.tar.gz",
+   "license": "MIT",
+   "split": "train",
+   "kinds": {
+    "py": [
+     "rich-13.9.2/rich/*.py"
+    ]
+   },
+   "sha256": "51a2c62057461aaf7152b4d611168f93a9fc73068f8ded2790f29fe2b5366d0c"
+  },
+  {
+   "id": "tune-scikit-learn",
+   "url": "https://files.pythonhosted.org/packages/source/s/scikit-learn/scikit_learn-1.5.2.tar.gz",
+   "license": "BSD-3-Clause",
+   "split": "valid",
+   "kinds": {
+    "py": [
+     "scikit_learn-1.5.2/sklearn/*.py"
+    ],
+    "prose": [
+     "scikit_learn-1.5.2/doc/*.rst"
+    ],
+    "png": [
+     "scikit_learn-1.5.2/doc/images/*.png",
+     "scikit_learn-1.5.2/doc/logos/*.png"
+    ]
+   },
+   "sha256": "b4237ed7b3fdd0a4882792e68ef2545d5baa50aca3bb45aa7df468138ad8f94d"
+  },
+  {
+   "id": "tune-flask",
+   "url": "https://files.pythonhosted.org/packages/source/f/flask/flask-3.0.3.tar.gz",
+   "license": "BSD-3-Clause",
+   "split": "train",
+   "kinds": {
+    "prose": [
+     "flask-3.0.3/docs/*.rst"
+    ]
+   },
+   "sha256": "ceb27b0af3823ea2737928a4d99d125a06175b8512c445cbd9a9ce200ef76842"
+  },
+  {
+   "id": "tune-flask-py",
+   "url": "https://files.pythonhosted.org/packages/source/f/flask/flask-3.0.3.tar.gz",
+   "license": "BSD-3-Clause",
+   "split": "valid",
+   "kinds": {
+    "py": [
+     "flask-3.0.3/src/*.py"
+    ]
+   },
+   "sha256": "ceb27b0af3823ea2737928a4d99d125a06175b8512c445cbd9a9ce200ef76842"
+  },
+  {
+   "id": "tune-requests",
+   "url": "https://files.pythonhosted.org/packages/source/r/requests/requests-2.32.3.tar.gz",
+   "license": "Apache-2.0",
+   "split": "valid",
+   "kinds": {
+    "py": [
+     "requests-2.32.3/src/*.py"
+    ]
+   },
+   "sha256": "55365417734eb18255590a9ff9eb97e9e1da868d4ccd6402399eaf68af20a760"
+  },
+  {
+   "id": "tune-pydantic",
+   "url": "https://files.pythonhosted.org/packages/source/p/pydantic/pydantic-2.9.2.tar.gz",
+   "license": "MIT",
+   "split": "valid",
+   "kinds": {
+    "py": [
+     "pydantic-2.9.2/pydantic/*.py"
+    ]
+   },
+   "sha256": "d155cef71265d1e9807ed1c32b4c8deec042a44a50a4188b25ac67ecd81a9c0f"
+  },
+  {
+   "id": "tune-git",
+   "url": "https://www.kernel.org/pub/software/scm/git/git-2.47.0.tar.xz",
+   "license": "GPL-2.0-only",
+   "split": "train",
+   "kinds": {
+    "c": [
+     "git-2.47.0/*.c",
+     "git-2.47.0/*.h"
+    ]
+   },
+   "sha256": "1ce114da88704271b43e027c51e04d9399f8c88e9ef7542dae7aebae7d87bc4e"
+  },
+  {
+   "id": "tune-libuv",
+   "url": "https://dist.libuv.org/dist/v1.49.2/libuv-v1.49.2.tar.gz",
+   "license": "MIT",
+   "split": "train",
+   "kinds": {
+    "c": [
+     "libuv-v1.49.2/src/*.c",
+     "libuv-v1.49.2/src/*.h",
+     "libuv-v1.49.2/include/*.h"
+    ]
+   },
+   "sha256": "8c10706bd2cf129045c42b94799a92df9aaa75d05f07e99cf083507239bae5a8"
+  },
+  {
+   "id": "tune-redis",
+   "url": "https://download.redis.io/releases/redis-7.2.6.tar.gz",
+   "license": "BSD-3-Clause",
+   "split": "valid",
+   "kinds": {
+    "c": [
+     "redis-7.2.6/src/*.c",
+     "redis-7.2.6/src/*.h"
+    ]
+   },
+   "sha256": "fb10d67a2fe2b4556f6cb840064dd6e6e3175ce8ca035f0726990ec2da9f3d0e"
+  },
+  {
+   "id": "tune-nginx",
+   "url": "https://nginx.org/download/nginx-1.26.2.tar.gz",
+   "license": "BSD-2-Clause",
+   "split": "valid",
+   "kinds": {
+    "c": [
+     "nginx-1.26.2/src/*.c",
+     "nginx-1.26.2/src/*.h"
+    ]
+   },
+   "sha256": "627fe086209bba80a2853a0add9d958d7ebbdffa1a8467a5784c9a6b4f03d738"
+  },
+  {
+   "id": "tune-rxjs",
+   "url": "https://registry.npmjs.org/rxjs/-/rxjs-7.8.1.tgz",
+   "license": "Apache-2.0",
+   "split": "train",
+   "kinds": {
+    "js": [
+     "package/dist/cjs/*.js",
+     "package/dist/esm/*.js"
+    ]
+   },
+   "sha256": "c532167725ab7d085123209156c93cef22f2479cb9c8527060f1cd903aa9d149"
+  },
+  {
+   "id": "tune-moment",
+   "url": "https://registry.npmjs.org/moment/-/moment-2.30.1.tgz",
+   "license": "MIT",
+   "split": "train",
+   "kinds": {
+    "js": [
+     "package/moment.js",
+     "package/locale/*.js",
+     "package/src/*.js"
+    ]
+   },
+   "sha256": "52219a9fee5e1faade4c72536c173c54cedd5e2619272dd0c251a30aeafcde8c"
+  },
+  {
+   "id": "tune-axios",
+   "url": "https://registry.npmjs.org/axios/-/axios-1.7.7.tgz",
+   "license": "MIT",
+   "split": "train",
+   "kinds": {
+    "js": [
+     "package/lib/*.js",
+     "package/dist/*.js"
+    ]
+   },
+   "sha256": "5f2dde3882446ea1cb5094dd7db99b4ed7cf09f0c96be646a8d30959b0923bec"
+  },
+  {
+   "id": "tune-chartjs",
+   "url": "https://registry.npmjs.org/chart.js/-/chart.js-4.4.4.tgz",
+   "license": "MIT",
+   "split": "valid",
+   "kinds": {
+    "js": [
+     "package/dist/*.js"
+    ]
+   },
+   "sha256": "d0885e6f46faa05f40d5d495ab3766afa719cec063a2391e7555634c051290c0"
+  },
+  {
+   "id": "tune-jquery",
+   "url": "https://registry.npmjs.org/jquery/-/jquery-3.7.1.tgz",
+   "license": "MIT",
+   "split": "valid",
+   "kinds": {
+    "js": [
+     "package/src/*.js",
+     "package/dist/*.js"
+    ]
+   },
+   "sha256": "68a9f787516da47c680e09c187bcbac4536b6f85d90eb882844e12919e583f53"
+  },
+  {
+   "id": "tune-preact",
+   "url": "https://registry.npmjs.org/preact/-/preact-10.24.3.tgz",
+   "license": "MIT",
+   "split": "valid",
+   "kinds": {
+    "js": [
+     "package/src/*.js",
+     "package/dist/*.js",
+     "package/*/src/*.js"
+    ]
+   },
+   "sha256": "d8f5d1d6bb058659079b26044ff532a77eb7060b9ae001faef80257891151880"
+  },
+  {
+   "id": "tune-json-schema-tests",
+   "url": "https://github.com/json-schema-org/JSON-Schema-Test-Suite/archive/refs/tags/23.1.0.tar.gz",
+   "license": "MIT",
+   "split": "train",
+   "kinds": {
+    "json": [
+     "JSON-Schema-Test-Suite-23.1.0/tests/*.json"
+    ]
+   },
+   "sha256": "254f8433a206202018457a1e8b0a4d7695bc91d933f76b2a7f8cdf5b9f100cfb"
+  },
+  {
+   "id": "tune-us-atlas",
+   "url": "https://registry.npmjs.org/us-atlas/-/us-atlas-3.0.1.tgz",
+   "license": "ISC",
+   "split": "train",
+   "kinds": {
+    "json": [
+     "package/*.json"
+    ]
+   },
+   "sha256": "e6daba1800885868303ad3549da62f85a557b8142bb72629ec15651de62f9c5d"
+  },
+  {
+   "id": "tune-caniuse",
+   "url": "https://registry.npmjs.org/caniuse-db/-/caniuse-db-1.0.30001819.tgz",
+   "license": "CC-BY-4.0",
+   "split": "train",
+   "kinds": {
+    "json": [
+     "package/features-json/*.json",
+     "package/region-usage-json/*.json"
+    ]
+   },
+   "sha256": "bda4da6c620269caf5d232c1ee92886ca051caf2f22b58bc9bf5e9d99de5b7b5"
+  },
+  {
+   "id": "tune-mime-db",
+   "url": "https://registry.npmjs.org/mime-db/-/mime-db-1.53.0.tgz",
+   "license": "MIT",
+   "split": "valid",
+   "kinds": {
+    "json": [
+     "package/db.json"
+    ]
+   },
+   "sha256": "569c499941a9bfad202c078a22f6fbc5d1844e60d21b145fd97e866d15f91b63"
+  },
+  {
+   "id": "tune-spdx",
+   "url": "https://registry.npmjs.org/spdx-license-list/-/spdx-license-list-6.9.0.tgz",
+   "license": "CC0-1.0",
+   "split": "valid",
+   "kinds": {
+    "json": [
+     "package/*.json"
+    ]
+   },
+   "sha256": "6fc548671065864949e0cedd510c823ecb2fcded932f32b116dc2618be61dcc5"
+  },
+  {
+   "id": "tune-vega-datasets",
+   "url": "https://registry.npmjs.org/vega-datasets/-/vega-datasets-3.2.1.tgz",
+   "license": "BSD-3-Clause",
+   "split": "valid",
+   "kinds": {
+    "json": [
+     "package/data/*.json"
+    ]
+   },
+   "sha256": "6f72fda460a9863fae5fcb32f85bcd49e1761fdea6dc6cf9f4962472881cc5a3"
+  },
+  {
+   "id": "tune-git-htmldocs",
+   "url": "https://www.kernel.org/pub/software/scm/git/git-htmldocs-2.47.0.tar.xz",
+   "license": "GPL-2.0-only",
+   "split": "train",
+   "kinds": {
+    "web": [
+     "*.html"
+    ]
+   },
+   "sha256": "fab133e8ef4cf825f5014d2fc708461e7a383fd90e52fbbae0b14ca12ede17b6"
+  },
+  {
+   "id": "tune-fontawesome",
+   "url": "https://registry.npmjs.org/@fortawesome/fontawesome-free/-/fontawesome-free-6.6.0.tgz",
+   "license": "CC-BY-4.0 AND MIT",
+   "split": "train",
+   "kinds": {
+    "web": [
+     "package/svgs/*.svg",
+     "package/css/*.css"
+    ]
+   },
+   "sha256": "cf0b890ab2b68d3c4ea0f93ceb81cc24b956cccf9db36c63be044a672bd3b4dd"
+  },
+  {
+   "id": "tune-bulma",
+   "url": "https://registry.npmjs.org/bulma/-/bulma-1.0.2.tgz",
+   "license": "MIT",
+   "split": "valid",
+   "kinds": {
+    "web": [
+     "package/css/*.css"
+    ]
+   },
+   "sha256": "3c14c39cb7d8b0f92f1fe8979f58d7d6425006f1000e70a61743fdadd419a5dd"
+  },
+  {
+   "id": "tune-feather",
+   "url": "https://registry.npmjs.org/feather-icons/-/feather-icons-4.29.2.tgz",
+   "license": "MIT",
+   "split": "valid",
+   "kinds": {
+    "web": [
+     "package/dist/icons/*.svg"
+    ]
+   },
+   "sha256": "28b6cad56600feee25c53051d65326621f2675d30d6f3d9bd3175f6117f84476"
+  },
+  {
+   "id": "tune-rfc7231-html",
+   "url": "https://www.rfc-editor.org/rfc/rfc7231.html",
+   "license": "IETF-Trust",
+   "split": "valid",
+   "kinds": {
+    "web": [
+     "rfc7231.html"
+    ]
+   },
+   "group": "tune-rfc-html",
+   "sha256": "2768dbaf1fba292ec4fbd8b898289aa2546de96e209de69bccb39c1563fa1719"
+  },
+  {
+   "id": "tune-rfc6749-html",
+   "url": "https://www.rfc-editor.org/rfc/rfc6749.html",
+   "license": "IETF-Trust",
+   "split": "valid",
+   "kinds": {
+    "web": [
+     "rfc6749.html"
+    ]
+   },
+   "group": "tune-rfc-html",
+   "sha256": "535362fa3b4ca668d4734c244c6ed8c811f2ccd7ea1612a4201e5d8922a74b4e"
+  },
+  {
+   "id": "tune-rfc7540-html",
+   "url": "https://www.rfc-editor.org/rfc/rfc7540.html",
+   "license": "IETF-Trust",
+   "split": "valid",
+   "kinds": {
+    "web": [
+     "rfc7540.html"
+    ]
+   },
+   "group": "tune-rfc-html",
+   "sha256": "9bba64628b7ca776719ab9f7a412e0ec94251febfc5c473ca897383c2db582c7"
+  },
+  {
+   "id": "tune-gutenberg1342",
+   "url": "https://www.gutenberg.org/cache/epub/1342/pg1342.txt",
+   "license": "public-domain",
+   "split": "train",
+   "kinds": {
+    "prose": [
+     "pg1342.txt"
+    ]
+   },
+   "group": "tune-gutenberg",
+   "comment": "Project Gutenberg text: public domain in the US; the file includes the Gutenberg license header",
+   "sha256": "3f6bb9d6f78e0293b56acd4714dd68cb7d6d1d293402031ce9d5a216bcaf9d75"
+  },
+  {
+   "id": "tune-gutenberg2701",
+   "url": "https://www.gutenberg.org/cache/epub/2701/pg2701.txt",
+   "license": "public-domain",
+   "split": "train",
+   "kinds": {
+    "prose": [
+     "pg2701.txt"
+    ]
+   },
+   "group": "tune-gutenberg",
+   "comment": "Project Gutenberg text: public domain in the US; the file includes the Gutenberg license header",
+   "sha256": "b5e88b71a1cda068e9ab1d94344c9d932338ba6da1a66def97a1aecd9cfcc87d"
+  },
+  {
+   "id": "tune-gutenberg84",
+   "url": "https://www.gutenberg.org/cache/epub/84/pg84.txt",
+   "license": "public-domain",
+   "split": "train",
+   "kinds": {
+    "prose": [
+     "pg84.txt"
+    ]
+   },
+   "group": "tune-gutenberg",
+   "comment": "Project Gutenberg text: public domain in the US; the file includes the Gutenberg license header",
+   "sha256": "2b97b7f8aad508649481d8dd4f6b54f9b965ddb3ba634e9151c815f537b49e42"
+  },
+  {
+   "id": "tune-gutenberg1661",
+   "url": "https://www.gutenberg.org/cache/epub/1661/pg1661.txt",
+   "license": "public-domain",
+   "split": "train",
+   "kinds": {
+    "prose": [
+     "pg1661.txt"
+    ]
+   },
+   "group": "tune-gutenberg",
+   "comment": "Project Gutenberg text: public domain in the US; the file includes the Gutenberg license header",
+   "sha256": "922e2a12ccb43a4c9544c260b2166c6ad2097aeb5957faeee113f173bb857cd0"
+  },
+  {
+   "id": "tune-gutenberg345",
+   "url": "https://www.gutenberg.org/cache/epub/345/pg345.txt",
+   "license": "public-domain",
+   "split": "train",
+   "kinds": {
+    "prose": [
+     "pg345.txt"
+    ]
+   },
+   "group": "tune-gutenberg",
+   "comment": "Project Gutenberg text: public domain in the US; the file includes the Gutenberg license header",
+   "sha256": "96cd16eacdbfebae8fdda5591f66e0cc8ee76be18e0cd1aca02bc00615782d28"
+  },
+  {
+   "id": "tune-gutenberg98",
+   "url": "https://www.gutenberg.org/cache/epub/98/pg98.txt",
+   "license": "public-domain",
+   "split": "train",
+   "kinds": {
+    "prose": [
+     "pg98.txt"
+    ]
+   },
+   "group": "tune-gutenberg",
+   "comment": "Project Gutenberg text: public domain in the US; the file includes the Gutenberg license header",
+   "sha256": "d54c2b80d40a40b982cd88852c6180bb944d95acdb028af3d0e01a1750681784"
+  },
+  {
+   "id": "tune-rfc9110",
+   "url": "https://www.rfc-editor.org/rfc/rfc9110.txt",
+   "license": "IETF-Trust",
+   "split": "valid",
+   "kinds": {
+    "prose": [
+     "rfc9110.txt"
+    ]
+   },
+   "group": "tune-rfc",
+   "sha256": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a"
+  },
+  {
+   "id": "tune-rfc9000",
+   "url": "https://www.rfc-editor.org/rfc/rfc9000.txt",
+   "license": "IETF-Trust",
+   "split": "valid",
+   "kinds": {
+    "prose": [
+     "rfc9000.txt"
+    ]
+   },
+   "group": "tune-rfc",
+   "sha256": "f88aae47f8b18e102024916e975e919201d8dde689cba79b01079eaedd402e22"
+  },
+  {
+   "id": "tune-rfc8446",
+   "url": "https://www.rfc-editor.org/rfc/rfc8446.txt",
+   "license": "IETF-Trust",
+   "split": "valid",
+   "kinds": {
+    "prose": [
+     "rfc8446.txt"
+    ]
+   },
+   "group": "tune-rfc",
+   "sha256": "47871bc8820a2c3b6ea89f061055577058862cf543686b82d10131239702b3bd"
+  },
+  {
+   "id": "tune-rfc5321",
+   "url": "https://www.rfc-editor.org/rfc/rfc5321.txt",
+   "license": "IETF-Trust",
+   "split": "valid",
+   "kinds": {
+    "prose": [
+     "rfc5321.txt"
+    ]
+   },
+   "group": "tune-rfc",
+   "sha256": "7d560eddff1b213c17d4e1e5f95005728b2f05bc2b3947f0fcc91717c6707634"
+  },
+  {
+   "id": "tune-rfc3986",
+   "url": "https://www.rfc-editor.org/rfc/rfc3986.txt",
+   "license": "IETF-Trust",
+   "split": "valid",
+   "kinds": {
+    "prose": [
+     "rfc3986.txt"
+    ]
+   },
+   "group": "tune-rfc",
+   "sha256": "3102dae4b68cebe40337730312fcb612297b8928547267e8b3d1ee6002b2d683"
+  },
+  {
+   "id": "tune-rfc9293",
+   "url": "https://www.rfc-editor.org/rfc/rfc9293.txt",
+   "license": "IETF-Trust",
+   "split": "valid",
+   "kinds": {
+    "prose": [
+     "rfc9293.txt"
+    ]
+   },
+   "group": "tune-rfc",
+   "sha256": "6d9ac8be4b0286f8c3d337addf442b2eb6a9b14e1366594ea7fbc273f93dc2d9"
+  },
+  {
+   "id": "tune-deb-coreutils",
+   "url": "https://snapshot.debian.org/file/a2f7017395e57d6da64f4562578213dd19568939",
+   "license": "GPL-3.0-or-later",
+   "split": "train",
+   "kinds": {
+    "man": [
+     "usr/share/man/*.gz"
+    ],
+    "elf": [
+     "usr/bin/*",
+     "bin/*"
+    ]
+   },
+   "archive": "deb",
+   "vm_split": true,
+   "sha256": "61038f857e346e8500adf53a2a0a20859f4d3a3b51570cc876b153a2d51a3091"
+  },
+  {
+   "id": "tune-deb-openssh-client",
+   "url": "https://snapshot.debian.org/file/81171c850daaaedc27dabae3717dc20943ef371a",
+   "license": "BSD-2-Clause AND others (debian/copyright)",
+   "split": "train",
+   "kinds": {
+    "man": [
+     "usr/share/man/*.gz"
+    ],
+    "elf": [
+     "usr/bin/*"
+    ]
+   },
+   "archive": "deb",
+   "vm_split": true,
+   "sha256": "a9a0600c9d8d2b2d40295ed0ca868a2d248920dc38a31351e334f62ea48ebf04"
+  },
+  {
+   "id": "tune-deb-systemd",
+   "url": "https://snapshot.debian.org/file/cb544da9bc18e289a7cb0dac1902eb1198ea97c1",
+   "license": "LGPL-2.1-or-later",
+   "split": "train",
+   "kinds": {
+    "man": [
+     "usr/share/man/*.gz"
+    ]
+   },
+   "archive": "deb",
+   "vm_split": true,
+   "sha256": "0425e07cf6f928ff809541226c33841aed49247fedfdfa86878d90a7ff09c5ce"
+  },
+  {
+   "id": "tune-deb-procps",
+   "url": "https://snapshot.debian.org/file/896704b4f92964528063d13680fcf49d663e85ea",
+   "license": "GPL-2.0-or-later",
+   "split": "train",
+   "kinds": {
+    "man": [
+     "usr/share/man/*.gz"
+    ]
+   },
+   "archive": "deb",
+   "vm_split": true,
+   "sha256": "d9d0e75779cb79af869181f17b93c5c263a2b89cac6a0193c436160a4483ddc1"
+  },
+  {
+   "id": "tune-deb-bash",
+   "url": "https://snapshot.debian.org/file/92fd243266656d465d8c1207fb0d0529fbd0052a",
+   "license": "GPL-3.0-or-later",
+   "split": "train",
+   "kinds": {
+    "man": [
+     "usr/share/man/*.gz"
+    ]
+   },
+   "archive": "deb",
+   "vm_split": true,
+   "sha256": "d3c65202568384a588ea32017b243fe64ca054943a008cba4e5bd8f9e79975c4"
+  },
+  {
+   "id": "tune-deb-util-linux",
+   "url": "https://snapshot.debian.org/file/dbe00bf187f7874551d4da36c11fafe33d508d2b",
+   "license": "GPL-2.0-or-later AND others (debian/copyright)",
+   "split": "valid",
+   "kinds": {
+    "man": [
+     "usr/share/man/*.gz"
+    ],
+    "elf": [
+     "usr/bin/*",
+     "bin/*",
+     "sbin/*",
+     "usr/sbin/*"
+    ]
+   },
+   "archive": "deb",
+   "vm_split": true,
+   "sha256": "8eb241ff24b2e1ee9c0373f4fc9bc728b85bf5966c1496154df7da01c0e42f34"
+  },
+  {
+   "id": "tune-deb-git-man",
+   "url": "https://snapshot.debian.org/file/c64a2c21615871e833ce2c9cb324010e350ba6aa",
+   "license": "GPL-2.0-only",
+   "split": "valid",
+   "kinds": {
+    "man": [
+     "usr/share/man/*.gz"
+    ]
+   },
+   "archive": "deb",
+   "vm_split": true,
+   "sha256": "dba6b0fd06e11669ba1f60bb4e90af0157f1157b098df7f702cb9beb16fbfc5d"
+  },
+  {
+   "id": "tune-deb-tar",
+   "url": "https://snapshot.debian.org/file/0e6444727af3b463cbdf2f6d83b3a2d1cce2bced",
+   "license": "GPL-3.0-or-later",
+   "split": "valid",
+   "kinds": {
+    "man": [
+     "usr/share/man/*.gz"
+    ],
+    "elf": [
+     "bin/*",
+     "usr/bin/*",
+     "usr/sbin/*"
+    ]
+   },
+   "archive": "deb",
+   "vm_split": true,
+   "sha256": "24fb92e98c2969171f81a8b589263d705f6b1670f95d121cd74c810d4605acc3"
+  },
+  {
+   "id": "tune-fd",
+   "url": "https://github.com/sharkdp/fd/releases/download/v10.2.0/fd-v10.2.0-x86_64-unknown-linux-musl.tar.gz",
+   "license": "MIT OR Apache-2.0",
+   "split": "train",
+   "kinds": {
+    "elf": [
+     "fd-v10.2.0-x86_64-unknown-linux-musl/fd"
+    ]
+   },
+   "sha256": "d9bfa25ec28624545c222992e1b00673b7c9ca5eb15393c40369f10b28f9c932"
+  },
+  {
+   "id": "tune-bat",
+   "url": "https://github.com/sharkdp/bat/releases/download/v0.24.0/bat-v0.24.0-x86_64-unknown-linux-musl.tar.gz",
+   "license": "MIT OR Apache-2.0",
+   "split": "train",
+   "kinds": {
+    "elf": [
+     "bat-v0.24.0-x86_64-unknown-linux-musl/bat"
+    ]
+   },
+   "sha256": "d39a21e3da57fe6a3e07184b3c1dc245f8dba379af569d3668b6dcdfe75e3052"
+  },
+  {
+   "id": "tune-hyperfine",
+   "url": "https://github.com/sharkdp/hyperfine/releases/download/v1.18.0/hyperfine-v1.18.0-x86_64-unknown-linux-musl.tar.gz",
+   "license": "MIT OR Apache-2.0",
+   "split": "valid",
+   "kinds": {
+    "elf": [
+     "hyperfine-v1.18.0-x86_64-unknown-linux-musl/hyperfine"
+    ]
+   },
+   "sha256": "ef3855ad6a1bf97055a90dc3dfc5d4a48494cb80344027db932a96341d415193"
+  },
+  {
+   "id": "tune-delta",
+   "url": "https://github.com/dandavison/delta/releases/download/0.18.2/delta-0.18.2-x86_64-unknown-linux-musl.tar.gz",
+   "license": "MIT",
+   "split": "valid",
+   "kinds": {
+    "elf": [
+     "delta-0.18.2-x86_64-unknown-linux-musl/delta"
+    ]
+   },
+   "sha256": "b7ea845004762358a00ef9127dd9fd723e333c7e4b9cb1da220c3909372310ee"
+  },
+  {
+   "id": "tune-ninja",
+   "url": "https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-linux.zip",
+   "license": "Apache-2.0",
+   "split": "valid",
+   "kinds": {
+    "elf": [
+     "ninja"
+    ]
+   },
+   "sha256": "6f98805688d19672bd699fbbfa2c2cf0fc054ac3df1f0e6a47664d963d530255"
+  },
+  {
+   "id": "tune-matplotlib",
+   "url": "https://files.pythonhosted.org/packages/source/m/matplotlib/matplotlib-3.9.2.tar.gz",
+   "license": "Matplotlib (PSF-style)",
+   "split": "train",
+   "kinds": {
+    "png": [
+     "matplotlib-3.9.2/lib/matplotlib/tests/baseline_images/*.png"
+    ]
+   },
+   "comment": "test baseline images: plots, text and line art",
+   "sha256": "96ab43906269ca64a6366934106fa01534454a69e471b7bf3d79083981aaab92"
+  },
+  {
+   "id": "tune-kodak02",
+   "url": "http://r0k.us/graphics/kodak/kodak/kodim02.png",
+   "license": "Kodak (released for unrestricted use)",
+   "split": "train",
+   "kinds": {
+    "png": [
+     "kodim02.png"
+    ]
+   },
+   "group": "tune-kodak-train",
+   "sha256": "4f4b74a79237e311d72cad958237b5f7088d8bce1c82305ebefe1a70e3022dfd"
+  },
+  {
+   "id": "tune-kodak08",
+   "url": "http://r0k.us/graphics/kodak/kodak/kodim08.png",
+   "license": "Kodak (released for unrestricted use)",
+   "split": "train",
+   "kinds": {
+    "png": [
+     "kodim08.png"
+    ]
+   },
+   "group": "tune-kodak-train",
+   "sha256": "ba23983c76b4832ee0e8af0592664756841a16779acd69f792e268fb6d13d6e7"
+  },
+  {
+   "id": "tune-kodak15",
+   "url": "http://r0k.us/graphics/kodak/kodak/kodim15.png",
+   "license": "Kodak (released for unrestricted use)",
+   "split": "train",
+   "kinds": {
+    "png": [
+     "kodim15.png"
+    ]
+   },
+   "group": "tune-kodak-train",
+   "sha256": "7538cbb80cb9103606c48b806eae57d56c885c7f90b9b3be70a41160f9cbb683"
+  },
+  {
+   "id": "tune-kodak19",
+   "url": "http://r0k.us/graphics/kodak/kodak/kodim19.png",
+   "license": "Kodak (released for unrestricted use)",
+   "split": "valid",
+   "kinds": {
+    "png": [
+     "kodim19.png"
+    ]
+   },
+   "group": "tune-kodak-valid",
+   "sha256": "b7450b264b1b0a411390d8931b112c27905a992520fc90569dc4b920aa32bbdc"
+  },
+  {
+   "id": "tune-kodak21",
+   "url": "http://r0k.us/graphics/kodak/kodak/kodim21.png",
+   "license": "Kodak (released for unrestricted use)",
+   "split": "valid",
+   "kinds": {
+    "png": [
+     "kodim21.png"
+    ]
+   },
+   "group": "tune-kodak-valid",
+   "sha256": "ac958597c82073f6bb65129c68f72b651db5b9efd82e11547d07350214bc268b"
+  },
+  {
+   "id": "tune-kodak24",
+   "url": "http://r0k.us/graphics/kodak/kodak/kodim24.png",
+   "license": "Kodak (released for unrestricted use)",
+   "split": "valid",
+   "kinds": {
+    "png": [
+     "kodim24.png"
+    ]
+   },
+   "group": "tune-kodak-valid",
+   "sha256": "1071c68372cc5a01435c2c225a5cf7d4bb803846ec08bb6b3d6721b156d7cb96"
+  }
+ ]
+}

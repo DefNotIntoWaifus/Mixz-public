@@ -1,0 +1,885 @@
+/*
+ * mixz engine — context-mixing compressor core.
+ *
+ * Pipeline per bit:
+ *   hashed context models (bit-history states -> adaptive probability)
+ *   + order-0 model + match model
+ *   -> 2-layer gated logistic mixer (a small online neural network)
+ *   -> 2 APM/SSE refinement stages
+ *   -> binary arithmetic coder (16-bit probabilities)
+ *
+ * The model can be "primed": a per-format primer is replayed through the model
+ * before coding (encoder and decoder do the same), so statistics and the match
+ * buffer start from learned per-format knowledge instead of zero.
+ *
+ * All arithmetic is integer-only so encoder and decoder are bit-exact across
+ * compilers and CPUs.
+ */
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+
+typedef uint8_t U8;
+typedef uint16_t U16;
+typedef uint32_t U32;
+typedef int32_t I32;
+typedef uint64_t U64;
+typedef int64_t I64;
+
+#define EXPORT __attribute__((visibility("default")))
+#ifndef LR1
+#define LR1 2
+#endif
+#ifndef LR2
+#define LR2 1
+#endif
+#ifndef WINIT
+#define WINIT 8192
+#endif
+#ifndef SHIFT1
+#define SHIFT1 12
+#endif
+#ifndef SHIFT2
+#define SHIFT2 12
+#endif
+#ifndef SMLIM
+#define SMLIM 1023
+#endif
+#ifndef APMRATE
+#define APMRATE 6
+#endif
+#ifndef FW0
+#define FW0 1
+#endif
+#ifndef FW1
+#define FW1 1
+#endif
+#ifndef FW2
+#define FW2 2
+#endif
+
+/* ------------------------------------------------------------------ */
+/* squash / stretch: logistic function and its inverse, 12-bit domain  */
+/* ------------------------------------------------------------------ */
+static const int SQ_T[33] = {1, 2, 4, 6, 10, 17, 27, 45, 74, 120, 194,
+                             311, 488, 747, 1102, 1546, 2048, 2550, 2994, 3349,
+                             3608, 3785, 3902, 3976, 4022, 4051, 4069, 4079,
+                             4086, 4090, 4092, 4094, 4095};
+
+static inline int squash(int d) { /* d: stretch units (1/256), returns p in 1..4095 */
+  if (d > 2047) d = 2047;
+  if (d < -2047) d = -2047;
+  int w = d & 127;
+  int i = (d >> 7) + 16;
+  return (SQ_T[i] * (128 - w) + SQ_T[i + 1] * w + 64) >> 7;
+}
+
+static short STRETCH[4096];
+static int g_tables_ready = 0;
+
+/* ------------------------------------------------------------------ */
+/* Bit-history state machine                                           */
+/* state = (n0, n1): bounded counts of 0s and 1s seen in a context.    */
+/* On observing bit y the opposite count is discounted (non-stationary)*/
+/* ------------------------------------------------------------------ */
+#define MAXSTATES 256
+static U8 NEX[MAXSTATES][2];
+static U8 ST_N0[MAXSTATES], ST_N1[MAXSTATES];
+static int NSTATES = 0;
+static const int MAXFOR[8] = {40, 30, 24, 16, 10, 8, 7, 7};
+
+static int st_allowed(int a, int b) {
+  int mn = a < b ? a : b, mx = a < b ? b : a;
+  if (mn >= 8) return 0;
+  return mx <= MAXFOR[mn];
+}
+static int discount(int x) {
+  return (x >= 1) + (x >= 2) + (x >= 3) + (x >= 4) + (x >= 5) + (x >= 7) + (x >= 8);
+}
+static int st_index[64][64];
+
+static void build_states(void) {
+  for (int i = 0; i < 64; i++)
+    for (int j = 0; j < 64; j++) st_index[i][j] = -1;
+  /* BFS from (0,0) so indices are deterministic */
+  int qa[MAXSTATES], qb[MAXSTATES];
+  int head = 0, tail = 0;
+  st_index[0][0] = 0;
+  qa[tail] = 0; qb[tail] = 0; tail++;
+  while (head < tail) {
+    int a = qa[head], b = qb[head]; head++;
+    for (int y = 0; y < 2; y++) {
+      int na = a, nb = b;
+      if (y) { nb++; if (na > 2) na = discount(na); }
+      else   { na++; if (nb > 2) nb = discount(nb); }
+      while (!st_allowed(na, nb)) { if (na > nb) na--; else nb--; }
+      if (st_index[na][nb] < 0) {
+        st_index[na][nb] = tail;
+        qa[tail] = na; qb[tail] = nb; tail++;
+      }
+    }
+  }
+  NSTATES = tail;
+  for (int s = 0; s < NSTATES; s++) {
+    int a = qa[s], b = qb[s];
+    ST_N0[s] = (U8)a; ST_N1[s] = (U8)b;
+    for (int y = 0; y < 2; y++) {
+      int na = a, nb = b;
+      if (y) { nb++; if (na > 2) na = discount(na); }
+      else   { na++; if (nb > 2) nb = discount(nb); }
+      while (!st_allowed(na, nb)) { if (na > nb) na--; else nb--; }
+      NEX[s][y] = (U8)st_index[na][nb];
+    }
+  }
+}
+
+static int DT[1024]; /* adaptive learning-rate reciprocal table */
+
+static void init_tables(void) {
+  if (g_tables_ready) return;
+  int pi = 0;
+  for (int x = -2047; x <= 2047; x++) {
+    int v = squash(x);
+    for (int i = pi; i <= v; i++) STRETCH[i] = (short)x;
+    pi = v + 1;
+  }
+  for (int i = pi; i < 4096; i++) STRETCH[i] = 2047;
+  for (int i = 0; i < 1024; i++) DT[i] = (int)(131072 / (2 * i + 3)); /* 65536/(i+1.5) */
+  build_states();
+  g_tables_ready = 1;
+}
+static inline int stretch(int p) { return STRETCH[p]; }
+
+/* ------------------------------------------------------------------ */
+/* StateMap: context -> adaptive probability (22-bit p, 10-bit count)  */
+/* ------------------------------------------------------------------ */
+typedef struct { U32 *t; int cx; int n; } StateMap;
+
+static int sm_init(StateMap *m, int n) {
+  m->t = (U32 *)malloc(sizeof(U32) * n);
+  if (!m->t) return -1;
+  m->n = n; m->cx = 0;
+  for (int i = 0; i < n; i++) m->t[i] = 1u << 31;
+  return 0;
+}
+static void sm_init_states(StateMap *m) { /* prior from (n0,n1) */
+  for (int i = 0; i < m->n; i++) {
+    int s = i & 255;
+    if (s >= NSTATES) continue;
+    int a = ST_N0[s], b = ST_N1[s];
+    U32 p22 = (U32)(((U64)(2 * b + 1) << 22) / (U64)(2 * (a + b) + 2));
+    if (p22 > (1u << 22) - 1) p22 = (1u << 22) - 1;
+    m->t[i] = p22 << 10;
+  }
+}
+static inline int sm_p(StateMap *m, int cx) { m->cx = cx; return (int)(m->t[cx] >> 20); }
+static inline void sm_update(StateMap *m, int y, int limit) {
+  U32 t = m->t[m->cx];
+  int n = (int)(t & 1023);
+  I64 p = (I64)(t >> 10);
+  I64 target = y ? ((1 << 22) - 1) : 0;
+  p += ((target - p) * DT[n]) >> 16;
+  if (p < 0) p = 0;
+  if (p > (1 << 22) - 1) p = (1 << 22) - 1;
+  if (n < limit) n++;
+  m->t[m->cx] = ((U32)p << 10) | (U32)n;
+}
+
+/* ------------------------------------------------------------------ */
+/* APM / SSE: refines a probability given a small context              */
+/* ------------------------------------------------------------------ */
+typedef struct { U16 *t; int idx; } APM;
+static int apm_init(APM *a, int n) {
+  a->t = (U16 *)malloc(sizeof(U16) * n * 33);
+  if (!a->t) return -1;
+  for (int i = 0; i < n; i++)
+    for (int j = 0; j < 33; j++) {
+      int v = squash((j - 16) * 128) * 16;
+      if (v > 65535) v = 65535;
+      a->t[i * 33 + j] = (U16)v;
+    }
+  a->idx = 0;
+  return 0;
+}
+static inline int apm_pp(APM *a, int pr12, int cx) { /* returns 16-bit prob */
+  int s = stretch(pr12) + 2048; /* 1..4095 */
+  int lo = s >> 7, w = s & 127;
+  int base = cx * 33 + lo;
+  a->idx = base + (w >> 6);
+  return (a->t[base] * (128 - w) + a->t[base + 1] * w) >> 7;
+}
+static inline void apm_update(APM *a, int y, int rate) {
+  int g = (y << 16) + (y << rate) - y - y;
+  int v = a->t[a->idx];
+  v += (g - v) >> rate;
+  if (v < 0) v = 0;
+  if (v > 65535) v = 65535;
+  a->t[a->idx] = (U16)v;
+}
+
+/* ------------------------------------------------------------------ */
+/* Hashing                                                             */
+/* ------------------------------------------------------------------ */
+static inline U32 hmix(U32 h) {
+  h ^= h >> 16; h *= 0x7FEB352Du; h ^= h >> 15; h *= 0x846CA68Bu; h ^= h >> 16;
+  return h;
+}
+static inline U32 H2(U32 a, U32 b) { return hmix(a * 0x9E3779B1u + hmix(b + 0x632BE5ABu)); }
+static inline U32 H3(U32 a, U32 b, U32 c) { return H2(H2(a, b), c); }
+static inline U32 H4(U32 a, U32 b, U32 c, U32 d) { return H2(H3(a, b, c), d); }
+
+/* ------------------------------------------------------------------ */
+/* Model                                                               */
+/* ------------------------------------------------------------------ */
+#define NC 8                 /* hashed context models */
+#define NIN_USED (NC * 3 + 1 + 2 + 1) /* inputs: 3 per ctx, order0, match x2, bias */
+#define NIN 32 /* padded for SIMD */
+#define NM1 4                /* first-layer mixers */
+
+enum { PROF_TEXT = 0, PROF_BIN = 1, PROF_IMAGE = 2 };
+
+typedef struct {
+  int profile, stride, bpp;
+  /* context tables: buckets of 16 bytes = [checksum, 15 nibble-tree states] */
+  U8 *T[NC];
+  U32 tbits;
+  U8 *cp[NC];
+  U8 *sp[NC];
+  U32 h[NC];
+  StateMap sm[NC];
+  /* run model: per (context, byte-history) the last byte seen and its repeat count */
+  U32 *R[NC]; U32 *rp[NC]; int rexp[NC]; StateMap rsm[NC];
+  StateMap o0, mm;
+  /* match model */
+  U8 *buf; U32 bufmask; U32 pos;
+  U32 *ht; U32 htbits;
+  U32 mlen, mptr; int mexp; int mq;
+  /* mixer */
+  short x[NIN];
+  I32 *w1[NM1]; int sel[NM1]; int nsel[NM1]; int d1[NM1]; int p1[NM1];
+  I32 *w2; int sel2; int d2; int pm;
+  APM a1, a2; int pa1, pa2;
+  /* byte state */
+  U32 c0, c4, c8; int bits; int node;
+  U32 word, word1;
+  U32 line_start, prev_line_start;
+  U32 img_pos;
+  int pr; /* final 16-bit probability of bit==1 */
+} Model;
+
+static void model_free(Model *m) {
+  for (int i = 0; i < NC; i++) { free(m->T[i]); free(m->sm[i].t); free(m->R[i]); free(m->rsm[i].t); }
+  free(m->o0.t); free(m->mm.t); free(m->buf); free(m->ht);
+  for (int i = 0; i < NM1; i++) free(m->w1[i]);
+  free(m->w2); free(m->a1.t); free(m->a2.t);
+}
+
+static U32 ilog2u(U64 x) { U32 r = 0; while (x > 1) { x >>= 1; r++; } return r; }
+
+static inline U8 hist(Model *m, U32 back) { /* byte at pos-back (1 = last byte) */
+  if (back == 0 || back > m->pos) return 0;
+  return m->buf[(m->pos - back) & m->bufmask];
+}
+
+static U8 *bucket_find(Model *m, int i, U32 hh) {
+  U32 idx = hh >> (32 - m->tbits);
+  U8 chk = (U8)(hh & 255);
+  U8 *b0 = m->T[i] + ((size_t)idx << 4);
+  if (b0[0] == chk) return b0;
+  U8 *b1 = m->T[i] + ((size_t)(idx ^ 1) << 4);
+  if (b1[0] == chk) return b1;
+  int p0 = ST_N0[b0[1]] + ST_N1[b0[1]], p1 = ST_N0[b1[1]] + ST_N1[b1[1]];
+  U8 *r = (p0 <= p1) ? b0 : b1;
+  memset(r, 0, 16);
+  r[0] = chk;
+  return r;
+}
+
+static inline void run_lookup(Model *m) {
+  for (int i = 0; i < NC; i++) {
+    U32 hh = hmix(m->h[i] ^ 0xA5A5A5A5u);
+    U32 *r = m->R[i] + (hh >> (32 - (m->tbits - 1)));
+    U32 chk = hh & 0xffff;
+    if ((*r >> 16) != chk) *r = chk << 16; /* new: byte 0, count 0 */
+    m->rp[i] = r;
+  }
+}
+static inline void run_update(Model *m, U8 c) {
+  for (int i = 0; i < NC; i++) {
+    U32 r = *m->rp[i];
+    U32 cnt = r & 255, b = (r >> 8) & 255;
+    if (cnt && b == c) { if (cnt < 255) cnt++; }
+    else { b = c; cnt = 1; }
+    *m->rp[i] = (r & 0xffff0000u) | (b << 8) | cnt;
+  }
+}
+
+static void compute_contexts(Model *m) {
+  U32 c4 = m->c4, c8 = m->c8;
+  U32 c1 = c4 & 255;
+  if (m->profile == PROF_IMAGE) {
+    U32 b = (U32)m->bpp, s = (U32)m->stride;
+    U32 W = hist(m, b), N = hist(m, s), NW = hist(m, s + b), NE = hist(m, s > b ? s - b : 0);
+    U32 WW = hist(m, 2 * b), NN = hist(m, 2 * s);
+    U32 ch = m->img_pos % b;
+    int grad = (int)W + (int)N - (int)NW; if (grad < 0) grad = 0; if (grad > 255) grad = 255;
+    int ew = 2 * (int)W - (int)WW; if (ew < 0) ew = 0; if (ew > 255) ew = 255;
+    int en = 2 * (int)N - (int)NN; if (en < 0) en = 0; if (en > 255) en = 255;
+    m->h[0] = H3(1, W, ch);
+    m->h[1] = H3(2, N, ch);
+    m->h[2] = H4(3, W, N, ch);
+    m->h[3] = H4(4, W, N, NW);
+    m->h[4] = H3(5, (U32)grad, ch);
+    m->h[5] = H4(6, N, NE, ch);
+    m->h[6] = H4(7, c1, W, ch);
+    m->h[7] = H4(8, (U32)ew, (U32)en, ch);
+  } else if (m->profile == PROF_BIN) {
+    m->h[0] = H2(1, c1);
+    m->h[1] = H2(2, c4 & 0xffff);
+    m->h[2] = H2(3, c4 & 0xffffff);
+    m->h[3] = H2(4, c4);
+    m->h[4] = H3(5, c4, c8 & 0xffff);
+    m->h[5] = H2(6, c4 & 0xffff00);
+    m->h[6] = H2(7, c4 & 0xff00ff);
+    m->h[7] = H4(8, c1, c4 >> 24, m->pos & 3);
+  } else {
+    U32 col = m->pos - m->line_start;
+    U32 above = 0;
+    if (m->prev_line_start + col < m->line_start) above = hist(m, m->pos - (m->prev_line_start + col));
+    m->h[0] = H2(1, c1);
+    m->h[1] = H2(2, c4 & 0xffff);
+    m->h[2] = H2(3, c4 & 0xffffff);
+    m->h[3] = H2(4, c4);
+    m->h[4] = H3(5, c4, c8 & 0xffff);
+    m->h[5] = H3(6, m->word, m->word ? 0 : c1);
+    m->h[6] = H3(7, m->word, m->word1);
+    m->h[7] = H4(8, above, c1, col < 32 ? col : 32);
+  }
+}
+
+/* table sizes depend only on (total bytes modelled, maxbits): encoder and decoder agree */
+static void model_sizes(U64 total, int maxbits, U32 *tb, U32 *bb, U32 *hb) {
+  /* ~2 buckets touched per byte per context */
+  U32 t = ilog2u(total * 2 + 1) + 1;
+  if (maxbits < 16) maxbits = 16;
+  if (maxbits > 24) maxbits = 24;
+  if (t < 16) t = 16;
+  if (t > (U32)maxbits) t = (U32)maxbits;
+  U32 b = ilog2u(total + 1) + 1;
+  if (b < 16) b = 16;
+  if (b > 28) b = 28;
+  U32 h = b - 2;
+  if (h < 16) h = 16;
+  if (h > 24) h = 24;
+  *tb = t; *bb = b; *hb = h;
+}
+
+static int model_init(Model *m, int profile, int stride, int bpp, int maxbits, U64 total) {
+  memset(m, 0, sizeof(*m));
+  init_tables();
+  m->profile = profile;
+  m->stride = stride > 0 ? stride : 1;
+  m->bpp = bpp > 0 ? bpp : 1;
+  U32 tb, bb, hb;
+  model_sizes(total, maxbits, &tb, &bb, &hb);
+  m->tbits = tb;
+  for (int i = 0; i < NC; i++) {
+    m->T[i] = (U8 *)calloc((size_t)1 << tb, 16);
+    if (!m->T[i]) return -1;
+    if (sm_init(&m->sm[i], 256)) return -1;
+    sm_init_states(&m->sm[i]);
+    m->R[i] = (U32 *)calloc((size_t)1 << (tb - 1), sizeof(U32));
+    if (!m->R[i] || sm_init(&m->rsm[i], 64)) return -1;
+  }
+  if (sm_init(&m->o0, 256) || sm_init(&m->mm, 64)) return -1;
+  m->buf = (U8 *)calloc((size_t)1 << bb, 1);
+  m->bufmask = (1u << bb) - 1;
+  m->htbits = hb;
+  m->ht = (U32 *)calloc((size_t)1 << hb, sizeof(U32));
+  if (!m->buf || !m->ht) return -1;
+  m->nsel[0] = 256; m->nsel[1] = 32 * 8; m->nsel[2] = 256; m->nsel[3] = 10 * 8 * 2;
+  for (int k = 0; k < NM1; k++) {
+    m->w1[k] = (I32 *)malloc(sizeof(I32) * NIN * m->nsel[k]);
+    if (!m->w1[k]) return -1;
+    for (int i = 0; i < NIN * m->nsel[k]; i++) m->w1[k][i] = WINIT;
+  }
+  m->w2 = (I32 *)malloc(sizeof(I32) * (NM1 + 1) * 8 * 2);
+  if (!m->w2) return -1;
+  for (int i = 0; i < (NM1 + 1) * 8 * 2; i++) m->w2[i] = 65536 / NM1;
+  if (apm_init(&m->a1, 65536) || apm_init(&m->a2, 65536)) return -1;
+  m->c0 = 1; m->bits = 0; m->node = 1;
+  compute_contexts(m);
+  for (int i = 0; i < NC; i++) m->cp[i] = bucket_find(m, i, m->h[i]);
+  run_lookup(m);
+  m->pr = 32768;
+  m->pm = 2048;
+  return 0;
+}
+
+/* weights: 16.16 fixed point, clamped to +-8.0 so int32 products never overflow */
+#define WMAX (1 << 19)
+static inline int dot(const short *x, const I32 *w, int n) {
+  I32 s = 0;
+  for (int i = 0; i < n; i++) s += (x[i] * w[i]) >> 8;
+  s >>= 8;
+  if (s > 2047) s = 2047;
+  if (s < -2047) s = -2047;
+  return (int)s;
+}
+static inline void train(const short *x, I32 *w, int n, int err, int shift) {
+  for (int i = 0; i < n; i++) {
+    I32 v = w[i] + ((x[i] * err) >> shift);
+    v = v > WMAX ? WMAX : v;
+    v = v < -WMAX ? -WMAX : v;
+    w[i] = v;
+  }
+}
+
+static inline int lenq(U32 len) {
+  if (len < 16) return (int)len;
+  if (len < 32) return 16 + (int)((len - 16) >> 2);
+  if (len < 64) return 20 + (int)((len - 32) >> 3);
+  if (len < 128) return 24 + (int)((len - 64) >> 4);
+  return len < 256 ? 28 + (int)((len - 128) >> 6) : 31;
+}
+
+static void predict(Model *m) {
+  int k = 0;
+  for (int i = 0; i < NC; i++) {
+    U8 *slot = m->cp[i] + m->node;
+    m->sp[i] = slot;
+    int s = *slot;
+    int st = stretch(sm_p(&m->sm[i], s));
+    m->x[k++] = (short)st;
+    int det = (s != 0) && (ST_N0[s] == 0 || ST_N1[s] == 0);
+    m->x[k++] = (short)(det ? st : 0);
+    U32 r = *m->rp[i];
+    U32 cnt = r & 255, rb = ((r >> 8) & 255) | 256;
+    m->rexp[i] = -1;
+    if (cnt && (rb >> (8 - m->bits)) == m->c0) {
+      int e = (int)((rb >> (7 - m->bits)) & 1);
+      int q = cnt > 15 ? 15 : (int)cnt;
+      m->rexp[i] = e;
+      m->x[k++] = (short)stretch(sm_p(&m->rsm[i], q * 2 + e));
+    } else m->x[k++] = 0;
+  }
+  m->x[k++] = (short)stretch(sm_p(&m->o0, (int)m->c0));
+  /* match model */
+  m->mexp = -1; m->mq = 0;
+  if (m->mlen > 0) {
+    U32 pb = m->buf[m->mptr & m->bufmask] | 256u;
+    if ((pb >> (8 - m->bits)) == m->c0) {
+      m->mexp = (int)((pb >> (7 - m->bits)) & 1);
+      m->mq = lenq(m->mlen);
+    } else {
+      m->mlen = 0;
+    }
+  }
+  if (m->mexp >= 0) {
+    int st = stretch(sm_p(&m->mm, m->mq * 2 + m->mexp));
+    m->x[k++] = (short)st;
+    int conf = (int)(m->mlen < 32 ? m->mlen : 32) * 64;
+    m->x[k++] = (short)(m->mexp ? conf : -conf);
+  } else {
+    m->x[k++] = 0; m->x[k++] = 0;
+  }
+  m->x[k++] = 256; /* bias */
+  while (k < NIN) m->x[k++] = 0;
+
+  /* layer 1: three gated mixers with different selector contexts */
+  U32 c1 = m->c4 & 255;
+  m->sel[0] = (int)m->c0;
+  m->sel[1] = (m->mexp >= 0 ? (m->mq + 1 > 31 ? 31 : m->mq + 1) : 0) * 8 + m->bits;
+  if (m->profile == PROF_IMAGE) m->sel[2] = hist(m, (U32)m->bpp);
+  else m->sel[2] = (int)c1;
+  {
+    int known = 0;
+    for (int i = 0; i < NC; i++) known += (*m->sp[i] != 0);
+    m->sel[3] = (known * 8 + m->bits) * 2 + (m->rexp[3] >= 0);
+  }
+  short x2[NM1 + 1];
+  for (int j = 0; j < NM1; j++) {
+    m->d1[j] = dot(m->x, m->w1[j] + (size_t)m->sel[j] * NIN, NIN);
+    m->p1[j] = squash(m->d1[j]);
+    x2[j] = (short)m->d1[j];
+  }
+  x2[NM1] = 256;
+  /* layer 2 */
+  m->sel2 = m->bits * 2 + (m->mexp >= 0);
+  m->d2 = dot(x2, m->w2 + (size_t)m->sel2 * (NM1 + 1), NM1 + 1);
+  m->pm = squash(m->d2);
+
+  /* SSE stages */
+  int ca, cb;
+  if (m->profile == PROF_IMAGE) {
+    U32 W = hist(m, (U32)m->bpp), N = hist(m, (U32)m->stride);
+    ca = (int)(m->c0 | (W << 8));
+    cb = (int)((m->c0 ^ (H2(W, N) & 0xff00)) & 0xffff);
+  } else {
+    ca = (int)(m->c0 | (c1 << 8));
+    cb = (int)((m->c0 ^ (H2(m->c4 & 0xffff, 9) & 0xff00)) & 0xffff);
+  }
+  m->pa1 = apm_pp(&m->a1, m->pm, ca);
+  m->pa2 = apm_pp(&m->a2, m->pm, cb);
+  int p = (m->pm * 16 * FW0 + m->pa1 * FW1 + m->pa2 * FW2) / (FW0 + FW1 + FW2);
+  if (p < 32) p = 32;
+  if (p > 65535 - 32) p = 65535 - 32;
+  m->pr = p;
+}
+
+static void byte_update(Model *m, U8 c) {
+  m->buf[m->pos & m->bufmask] = c;
+  m->pos++;
+  m->img_pos++;
+  m->c8 = (m->c8 << 8) | (m->c4 >> 24);
+  m->c4 = (m->c4 << 8) | c;
+  /* words (letters, case-folded) */
+  U8 lc = (c >= 'A' && c <= 'Z') ? (U8)(c + 32) : c;
+  if ((lc >= 'a' && lc <= 'z') || c >= 128 || (c >= '0' && c <= '9') || c == '_') {
+    m->word = (m->word + lc + 1) * 0x2F0F3D2Bu;
+  } else if (m->word) {
+    m->word1 = m->word;
+    m->word = 0;
+  }
+  if (c == '\n') { m->prev_line_start = m->line_start; m->line_start = m->pos; }
+  /* match model */
+  if (m->mlen > 0) {
+    if (m->buf[m->mptr & m->bufmask] == c) {
+      m->mlen++; m->mptr++;
+      if (m->mlen > 65535) m->mlen = 65535;
+    } else m->mlen = 0;
+  }
+  const U32 MINLEN = 6;
+  if (m->pos >= MINLEN) {
+    U32 hh = 0;
+    for (U32 i = 1; i <= MINLEN; i++) hh = (hh + hist(m, i) + 1) * 0x2F0F3D2Bu;
+    hh = hmix(hh) >> (32 - m->htbits);
+    if (m->mlen == 0) {
+      U32 cand = m->ht[hh];
+      if (cand > 0 && m->pos - cand < m->bufmask) {
+        U32 l = 0;
+        while (l < 400 && l < cand &&
+               m->buf[(cand - l - 1) & m->bufmask] == m->buf[(m->pos - l - 1) & m->bufmask])
+          l++;
+        if (l >= MINLEN) { m->mlen = l; m->mptr = cand; }
+      }
+    }
+    m->ht[hh] = m->pos;
+  }
+}
+
+static void model_update(Model *m, int y) {
+  /* SSE */
+  apm_update(&m->a1, y, APMRATE);
+  apm_update(&m->a2, y, APMRATE);
+  /* mixers */
+  int err2 = ((y << 12) - m->pm) * LR2;
+  short x2[NM1 + 1];
+  for (int j = 0; j < NM1; j++) x2[j] = (short)m->d1[j];
+  x2[NM1] = 256;
+  train(x2, m->w2 + (size_t)m->sel2 * (NM1 + 1), NM1 + 1, err2, SHIFT2);
+  for (int j = 0; j < NM1; j++) {
+    int err = ((y << 12) - m->p1[j]) * LR1;
+    train(m->x, m->w1[j] + (size_t)m->sel[j] * NIN, NIN, err, SHIFT1);
+  }
+  /* context states */
+  for (int i = 0; i < NC; i++) {
+    *m->sp[i] = NEX[*m->sp[i]][y];
+    sm_update(&m->sm[i], y, SMLIM);
+    if (m->rexp[i] >= 0) sm_update(&m->rsm[i], y, 1023);
+  }
+  sm_update(&m->o0, y, 255);
+  if (m->mexp >= 0) sm_update(&m->mm, y, 1023);
+
+  m->c0 = (m->c0 << 1) | (U32)y;
+  m->bits++;
+  m->node = m->node * 2 + y;
+  if (m->bits == 8) {
+    run_update(m, (U8)(m->c0 & 255));
+    byte_update(m, (U8)(m->c0 & 255));
+    m->c0 = 1; m->bits = 0; m->node = 1;
+    compute_contexts(m);
+    for (int i = 0; i < NC; i++) m->cp[i] = bucket_find(m, i, m->h[i]);
+    run_lookup(m);
+  } else if (m->bits == 4) {
+    m->node = 1;
+    for (int i = 0; i < NC; i++) m->cp[i] = bucket_find(m, i, hmix(m->h[i] + m->c0 * 0x9E3779B1u));
+  }
+  predict(m);
+}
+
+static void model_start(Model *m) { predict(m); }
+
+/* replay primer bytes through the model (no output) */
+static void model_prime(Model *m, const U8 *primer, size_t plen) {
+  for (size_t i = 0; i < plen; i++) {
+    U8 c = primer[i];
+    for (int b = 7; b >= 0; b--) model_update(m, (c >> b) & 1);
+  }
+  m->img_pos = 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Arithmetic coder                                                    */
+/* ------------------------------------------------------------------ */
+typedef struct { U32 x1, x2, x; U8 *out; size_t outpos, outcap; const U8 *in; size_t inpos, inlen; int overflow; } Coder;
+
+static inline void enc_bit(Coder *c, int y, int p16) {
+  U32 xmid = c->x1 + (U32)(((U64)(c->x2 - c->x1) * (U32)p16) >> 16);
+  if (y) c->x2 = xmid; else c->x1 = xmid + 1;
+  while (((c->x1 ^ c->x2) & 0xff000000u) == 0) {
+    if (c->outpos < c->outcap) c->out[c->outpos++] = (U8)(c->x2 >> 24);
+    else c->overflow = 1;
+    c->x1 <<= 8;
+    c->x2 = (c->x2 << 8) | 255;
+  }
+}
+static inline int dec_bit(Coder *c, int p16) {
+  U32 xmid = c->x1 + (U32)(((U64)(c->x2 - c->x1) * (U32)p16) >> 16);
+  int y = c->x <= xmid;
+  if (y) c->x2 = xmid; else c->x1 = xmid + 1;
+  while (((c->x1 ^ c->x2) & 0xff000000u) == 0) {
+    c->x1 <<= 8;
+    c->x2 = (c->x2 << 8) | 255;
+    c->x = (c->x << 8) | (c->inpos < c->inlen ? c->in[c->inpos++] : 0);
+  }
+  return y;
+}
+
+/* ------------------------------------------------------------------ */
+/* Public API                                                          */
+/* ------------------------------------------------------------------ */
+/* returns compressed size, or -1 on error, -2 if output buffer too small */
+EXPORT long long mz_compress(const U8 *in, size_t n, const U8 *primer, size_t plen,
+                             int profile, int stride, int bpp, int maxbits, U8 *out, size_t outcap) {
+  Model *m = (Model *)malloc(sizeof(Model));
+  if (!m) return -1;
+  if (model_init(m, profile, stride, bpp, maxbits, (U64)n + plen)) { model_free(m); free(m); return -1; }
+  model_start(m);
+  if (plen) model_prime(m, primer, plen);
+  Coder c = {0, 0xffffffffu, 0, out, 0, outcap, NULL, 0, 0, 0};
+  for (size_t i = 0; i < n; i++) {
+    U8 ch = in[i];
+    for (int b = 7; b >= 0; b--) {
+      int y = (ch >> b) & 1;
+      enc_bit(&c, y, m->pr);
+      model_update(m, y);
+    }
+    if (c.overflow) break;
+  }
+  for (int i = 0; i < 4; i++) {
+    if (c.outpos < c.outcap) c.out[c.outpos++] = (U8)(c.x1 >> 24);
+    else c.overflow = 1;
+    c.x1 <<= 8;
+  }
+  model_free(m); free(m);
+  return c.overflow ? -2 : (long long)c.outpos;
+}
+
+EXPORT int mz_decompress(const U8 *in, size_t inlen, const U8 *primer, size_t plen,
+                         int profile, int stride, int bpp, int maxbits, U8 *out, size_t n) {
+  Model *m = (Model *)malloc(sizeof(Model));
+  if (!m) return -1;
+  if (model_init(m, profile, stride, bpp, maxbits, (U64)n + plen)) { model_free(m); free(m); return -1; }
+  model_start(m);
+  if (plen) model_prime(m, primer, plen);
+  Coder c = {0, 0xffffffffu, 0, NULL, 0, 0, in, 0, inlen, 0};
+  for (int i = 0; i < 4; i++) c.x = (c.x << 8) | (c.inpos < c.inlen ? c.in[c.inpos++] : 0);
+  for (size_t i = 0; i < n; i++) {
+    int ch = 0;
+    for (int b = 0; b < 8; b++) {
+      int y = dec_bit(&c, m->pr);
+      model_update(m, y);
+      ch = (ch << 1) | y;
+    }
+    out[i] = (U8)ch;
+  }
+  model_free(m); free(m);
+  return 0;
+}
+
+/* x86 call/jmp transform: rel32 -> absolute (low 24 bits), reversible.
+ * Every E8/E9 opcode consumes its 4 operand bytes whether or not it is
+ * transformed. So positions visited, and the bytes each decision reads
+ * (b[i], b[i+4]), are never modified by any transform, and the inverse
+ * makes exactly the same decisions as the forward pass. */
+EXPORT void mz_e8e9(U8 *b, size_t n, int inverse) {
+  size_t i = 0;
+  while (i + 5 <= n) {
+    if (b[i] == 0xE8 || b[i] == 0xE9) {
+      if (b[i + 4] == 0x00 || b[i + 4] == 0xFF) {
+        U32 v = (U32)b[i + 1] | ((U32)b[i + 2] << 8) | ((U32)b[i + 3] << 16);
+        U32 off = (U32)(i + 5);
+        v = inverse ? (v - off) : (v + off);
+        v &= 0xFFFFFF;
+        b[i + 1] = (U8)v; b[i + 2] = (U8)(v >> 8); b[i + 3] = (U8)(v >> 16);
+      }
+      i += 5;
+    } else i++;
+  }
+}
+
+/* PNG scanline filters. filtered rows = [type][rowbytes]; pixels = rowbytes per row */
+static inline int paeth(int a, int b, int c) {
+  int p = a + b - c;
+  int pa = abs(p - a), pb = abs(p - b), pc = abs(p - c);
+  if (pa <= pb && pa <= pc) return a;
+  if (pb <= pc) return b;
+  return c;
+}
+EXPORT int mz_png_unfilter(const U8 *in, size_t h, size_t rowbytes, int bpp, U8 *pix, U8 *types) {
+  const U8 *src = in;
+  for (size_t y = 0; y < h; y++) {
+    int t = *src++;
+    if (t > 4) return -1;
+    types[y] = (U8)t;
+    U8 *row = pix + y * rowbytes;
+    const U8 *prev = y ? pix + (y - 1) * rowbytes : NULL;
+    for (size_t x = 0; x < rowbytes; x++) {
+      int a = x >= (size_t)bpp ? row[x - bpp] : 0;
+      int b = prev ? prev[x] : 0;
+      int c = (prev && x >= (size_t)bpp) ? prev[x - bpp] : 0;
+      int v = src[x];
+      switch (t) {
+        case 1: v += a; break;
+        case 2: v += b; break;
+        case 3: v += (a + b) >> 1; break;
+        case 4: v += paeth(a, b, c); break;
+      }
+      row[x] = (U8)v;
+    }
+    src += rowbytes;
+  }
+  return 0;
+}
+EXPORT int mz_png_refilter(const U8 *pix, const U8 *types, size_t h, size_t rowbytes, int bpp, U8 *out) {
+  U8 *dst = out;
+  for (size_t y = 0; y < h; y++) {
+    int t = types[y];
+    *dst++ = (U8)t;
+    const U8 *row = pix + y * rowbytes;
+    const U8 *prev = y ? pix + (y - 1) * rowbytes : NULL;
+    for (size_t x = 0; x < rowbytes; x++) {
+      int a = x >= (size_t)bpp ? row[x - bpp] : 0;
+      int b = prev ? prev[x] : 0;
+      int c = (prev && x >= (size_t)bpp) ? prev[x - bpp] : 0;
+      int v = row[x];
+      switch (t) {
+        case 1: v -= a; break;
+        case 2: v -= b; break;
+        case 3: v -= (a + b) >> 1; break;
+        case 4: v -= paeth(a, b, c); break;
+      }
+      dst[x] = (U8)v;
+    }
+    dst += rowbytes;
+  }
+  return 0;
+}
+
+EXPORT int mz_num_states(void) { init_tables(); return NSTATES; }
+
+/* ------------------------------------------------------------------ */
+/* Primed snapshots: prime once, clone per file (avoids replaying the  */
+/* primer for every file in a batch). Output is identical to the       */
+/* replay path because the primed state is identical.                  */
+/* ------------------------------------------------------------------ */
+#define CLONE(dst, src, field, bytes) do { (dst)->field = malloc(bytes); if (!(dst)->field) return -1; \
+    memcpy((dst)->field, (src)->field, bytes); } while (0)
+
+static int model_clone(Model *d, const Model *s) {
+  memcpy(d, s, sizeof(Model));
+  size_t tsz = ((size_t)1 << s->tbits) * 16, rsz = ((size_t)1 << (s->tbits - 1)) * 4;
+  for (int i = 0; i < NC; i++) { d->T[i] = NULL; d->R[i] = NULL; d->sm[i].t = NULL; d->rsm[i].t = NULL; }
+  d->o0.t = d->mm.t = NULL; d->buf = NULL; d->ht = NULL; d->w2 = NULL; d->a1.t = d->a2.t = NULL;
+  for (int k = 0; k < NM1; k++) d->w1[k] = NULL;
+  for (int i = 0; i < NC; i++) {
+    CLONE(d, s, T[i], tsz);
+    CLONE(d, s, R[i], rsz);
+    CLONE(d, s, sm[i].t, sizeof(U32) * s->sm[i].n);
+    CLONE(d, s, rsm[i].t, sizeof(U32) * s->rsm[i].n);
+    d->cp[i] = d->T[i] + (s->cp[i] - s->T[i]);
+    d->sp[i] = d->T[i] + (s->sp[i] - s->T[i]);
+    d->rp[i] = d->R[i] + (s->rp[i] - s->R[i]);
+  }
+  CLONE(d, s, o0.t, sizeof(U32) * s->o0.n);
+  CLONE(d, s, mm.t, sizeof(U32) * s->mm.n);
+  CLONE(d, s, buf, (size_t)s->bufmask + 1);
+  CLONE(d, s, ht, sizeof(U32) * ((size_t)1 << s->htbits));
+  for (int k = 0; k < NM1; k++) CLONE(d, s, w1[k], sizeof(I32) * NIN * s->nsel[k]);
+  CLONE(d, s, w2, sizeof(I32) * (NM1 + 1) * 8 * 2);
+  CLONE(d, s, a1.t, sizeof(U16) * 65536 * 33);
+  CLONE(d, s, a2.t, sizeof(U16) * 65536 * 33);
+  return 0;
+}
+
+typedef struct { Model m; int maxbits; } Snapshot;
+
+EXPORT void *mz_prime(const U8 *primer, size_t plen, int profile, int stride, int bpp, int maxbits,
+                      unsigned long long total_hint) {
+  Snapshot *s = (Snapshot *)malloc(sizeof(Snapshot));
+  if (!s) return NULL;
+  if (model_init(&s->m, profile, stride, bpp, maxbits, total_hint)) { model_free(&s->m); free(s); return NULL; }
+  s->maxbits = maxbits;
+  model_start(&s->m);
+  model_prime(&s->m, primer, plen);
+  return s;
+}
+EXPORT void mz_free_primed(void *p) { if (p) { model_free(&((Snapshot *)p)->m); free(p); } }
+
+/* packed size class so the caller can pick a compatible snapshot */
+EXPORT unsigned int mz_size_class(unsigned long long total, int maxbits) {
+  U32 tb, bb, hb;
+  model_sizes(total, maxbits, &tb, &bb, &hb);
+  return tb | (bb << 8) | (hb << 16);
+}
+
+static int snap_fits(const Snapshot *s, U64 total) {
+  U32 tb, bb, hb;
+  model_sizes(total, s->maxbits, &tb, &bb, &hb);
+  return tb == s->m.tbits && bb == ilog2u((U64)s->m.bufmask + 1) && hb == s->m.htbits;
+}
+
+EXPORT long long mz_compress_primed(void *snap, const U8 *in, size_t n, size_t plen, U8 *out, size_t outcap) {
+  Snapshot *s = (Snapshot *)snap;
+  if (!snap_fits(s, (U64)n + plen)) return -3;
+  Model *m = (Model *)malloc(sizeof(Model));
+  if (!m || model_clone(m, &s->m)) { if (m) { model_free(m); free(m); } return -1; }
+  Coder c = {0, 0xffffffffu, 0, out, 0, outcap, NULL, 0, 0, 0};
+  for (size_t i = 0; i < n; i++) {
+    U8 ch = in[i];
+    for (int b = 7; b >= 0; b--) {
+      int y = (ch >> b) & 1;
+      enc_bit(&c, y, m->pr);
+      model_update(m, y);
+    }
+    if (c.overflow) break;
+  }
+  for (int i = 0; i < 4; i++) {
+    if (c.outpos < c.outcap) c.out[c.outpos++] = (U8)(c.x1 >> 24);
+    else c.overflow = 1;
+    c.x1 <<= 8;
+  }
+  model_free(m); free(m);
+  return c.overflow ? -2 : (long long)c.outpos;
+}
+
+EXPORT int mz_decompress_primed(void *snap, const U8 *in, size_t inlen, size_t plen, U8 *out, size_t n) {
+  Snapshot *s = (Snapshot *)snap;
+  if (!snap_fits(s, (U64)n + plen)) return -3;
+  Model *m = (Model *)malloc(sizeof(Model));
+  if (!m || model_clone(m, &s->m)) { if (m) { model_free(m); free(m); } return -1; }
+  Coder c = {0, 0xffffffffu, 0, NULL, 0, 0, in, 0, inlen, 0};
+  for (int i = 0; i < 4; i++) c.x = (c.x << 8) | (c.inpos < c.inlen ? c.in[c.inpos++] : 0);
+  for (size_t i = 0; i < n; i++) {
+    int ch = 0;
+    for (int b = 0; b < 8; b++) {
+      int y = dec_bit(&c, m->pr);
+      model_update(m, y);
+      ch = (ch << 1) | y;
+    }
+    out[i] = (U8)ch;
+  }
+  model_free(m); free(m);
+  return 0;
+}

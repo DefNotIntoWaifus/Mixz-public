@@ -1,0 +1,186 @@
+{
+ "time": "2026-11-01 20:17:46",
+ "primers": false,
+ "kinds": {
+  "py": {
+   "files": 38,
+   "bytes": 524286,
+   "size": {
+    "gzip -9": 119604,
+    "xz -9e": 114800,
+    "zstd -19": 113063,
+    "brotli -q11": 101811,
+    "mixz": 89605,
+    "mixz bundle": 74995,
+    "paq8px -8": 76170,
+    "paq8px -8 (one stream)": 59328,
+    "zpaq -m5": 103171,
+    "zpaq -m5 (one stream)": 76898
+   },
+   "secs": {
+    "gzip -9": 0.040092000000000017,
+    "xz -9e": 0.41283000000000003,
+    "zstd -19": 0.24094400000000005,
+    "brotli -q11": 0.824363,
+    "mixz": 1.0507510000000004,
+    "mixz (decompress)": 1.031889,
+    "mixz bundle": 0.793493999999999,
+    "mixz bundle (decompress)": 0.8032750000000002,
+    "paq8px -8": 110.896,
+    "paq8px -8 (one stream)": 78.633,
+    "zpaq -m5": 2.931,
+    "zpaq -m5 (one stream)": 1.458
+   }
+  },
+  "js": {
+   "files": 46,
+   "bytes": 524243,
+   "size": {
+    "gzip -9": 147651,
+    "xz -9e": 137052,
+    "zstd -19": 137469,
+    "brotli -q11": 126488,
+    "mixz": 107336,
+    "mixz bundle": 89764,
+    "paq8px -8": 88124,
+    "paq8px -8 (one stream)": 69555,
+    "zpaq -m5": 122010,
+    "zpaq -m5 (one stream)": 91446
+   },
+   "secs": {
+    "gzip -9": 0.026568000000000147,
+    "xz -9e": 0.4439519999999999,
+    "zstd -19": 0.18803300000000034,
+    "brotli -q11": 0.8600779999999997,
+    "mixz": 1.1421110000000003,
+    "mixz (decompress)": 1.1177549999999998,
+    "mixz bundle": 0.8330019999999996,
+    "mixz bundle (decompress)": 0.824052,
+    "paq8px -8": 122.475,
+    "paq8px -8 (one stream)": 81.46,
+    "zpaq -m5": 3.368,
+    "zpaq -m5 (one stream)": 1.613
+   }
+  },
+  "json": {
+   "files": 64,
+   "bytes": 523392,
+   "size": {
+    "gzip -9": 43849,
+    "xz -9e": 45592,
+    "zstd -19": 41161,
+    "brotli -q11": 34211,
+    "mixz": 33789,
+    "mixz bundle": 13158,
+    "paq8px -8": 27538,
+    "paq8px -8 (one stream)": 7692,
+    "zpaq -m5": 55710,
+    "zpaq -m5 (one stream)": 16237
+   },
+   "secs": {
+    "gzip -9": 0.010395000000000376,
+    "xz -9e": 0.532184,
+    "zstd -19": 0.18029199999999967,
+    "brotli -q11": 0.5072010000000002,
+    "mixz": 1.182007,
+    "mixz (decompress)": 1.1784149999999998,
+    "mixz bundle": 0.7343480000000007,
+    "mixz bundle (decompress)": 0.728921999999999,
+    "paq8px -8": 123.726,
+    "paq8px -8 (one stream)": 68.475,
+    "zpaq -m5": 3.777,
+    "zpaq -m5 (one stream)": 1.339
+   }
+  },
+  "web": {
+   "files": 193,
+   "bytes": 524277,
+   "size": {
+    "gzip -9": 107098,
+    "xz -9e": 111184,
+    "zstd -19": 100487,
+    "brotli -q11": 89185,
+    "mixz": 81255,
+    "mixz bundle": 46725,
+    "paq8px -8": 67395,
+    "paq8px -8 (one stream)": 34226,
+    "zpaq -m5": 135150,
+    "zpaq -m5 (one stream)": 47308
+   },
+   "secs": {
+    "gzip -9": 0.021134999999999238,
+    "xz -9e": 1.4251999999999994,
+    "zstd -19": 0.2588520000000001,
+    "brotli -q11": 0.9451219999999996,
+    "mixz": 2.047151000000001,
+    "mixz (decompress)": 1.942209,
+    "mixz bundle": 0.7627370000000013,
+    "mixz bundle (decompress)": 0.7641460000000002,
+    "paq8px -8": 239.299,
+    "paq8px -8 (one stream)": 77.809,
+    "zpaq -m5": 8.702,
+    "zpaq -m5 (one stream)": 1.4
+   }
+  },
+  "prose": {
+   "files": 51,
+   "bytes": 524281,
+   "size": {
+    "gzip -9": 172767,
+    "xz -9e": 164216,
+    "zstd -19": 162335,
+    "brotli -q11": 145394,
+    "mixz": 127340,
+    "mixz bundle": 112414,
+    "paq8px -8": 113103,
+    "paq8px -8 (one stream)": 96859,
+    "zpaq -m5": 142815,
+    "zpaq -m5 (one stream)": 113068
+   },
+   "secs": {
+    "gzip -9": 0.03586299999999998,
+    "xz -9e": 0.48917300000000097,
+    "zstd -19": 0.20196699999999979,
+    "brotli -q11": 0.8522469999999984,
+    "mixz": 1.1650660000000002,
+    "mixz (decompress)": 1.1491120000000001,
+    "mixz bundle": 0.8034609999999995,
+    "mixz bundle (decompress)": 0.8376210000000004,
+    "paq8px -8": 126.802,
+    "paq8px -8 (one stream)": 83.439,
+    "zpaq -m5": 3.586,
+    "zpaq -m5 (one stream)": 1.597
+   }
+  },
+  "logs": {
+   "files": 16,
+   "bytes": 4458875,
+   "size": {
+    "gzip -9": 446369,
+    "xz -9e": 308468,
+    "zstd -19": 332756,
+    "brotli -q11": 307032,
+    "mixz": 213460,
+    "mixz bundle": 212578,
+    "paq8px -8": 159458,
+    "paq8px -8 (one stream)": 153904,
+    "zpaq -m5": 235755,
+    "zpaq -m5 (one stream)": 232417
+   },
+   "secs": {
+    "gzip -9": 0.1251180000000005,
+    "xz -9e": 1.9727180000000004,
+    "zstd -19": 2.9447419999999997,
+    "brotli -q11": 8.763071000000004,
+    "mixz": 6.487653,
+    "mixz (decompress)": 6.6169280000000015,
+    "mixz bundle": 6.1655429999999996,
+    "mixz bundle (decompress)": 6.088173999999995,
+    "paq8px -8": 639.738,
+    "paq8px -8 (one stream)": 633.981,
+    "zpaq -m5": 14.185,
+    "zpaq -m5 (one stream)": 11.491
+   }
+  }
+ }
+}

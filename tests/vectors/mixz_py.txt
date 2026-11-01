@@ -1,0 +1,765 @@
+#!/usr/bin/env python3
+"""
+mixz — format-aware context-mixing compressor (MVP).
+
+What it does, per file:
+  1. Detects the format from content (not the extension).
+  2. Undoes format-specific encodings that hide redundancy, but only when the
+     original bytes can be rebuilt bit-exactly:
+       - gzip  -> inflate, remember deflate parameters
+       - PNG   -> inflate IDAT + undo scanline filters
+       - x86 executables -> E8/E9 call/jump address transform
+  3. Picks a learned per-format primer (a sample of typical content for that
+     format) by testing which one predicts the file best.
+  4. Codes the bytes with the context-mixing engine (engine/mixz.c), primed
+     with that primer, so even small files start from format knowledge.
+  5. Falls back to storing the file unchanged when nothing helps
+     (worst-case overhead: a header of ~10 bytes).
+Every container carries a CRC32 of the original file; decompression verifies it.
+
+Usage:
+  mixz.py c FILE...          compress  -> FILE.mxz
+  mixz.py d FILE.mxz...      decompress -> FILE
+  mixz.py t FILE.mxz...      test integrity
+  mixz.py info FILE.mxz...   show how a file was encoded
+"""
+from __future__ import annotations
+
+import argparse
+import base64
+import ctypes
+import json
+import os
+import struct
+import subprocess
+import sys
+import threading
+import time
+import zlib
+from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+SRC = os.path.join(HERE, "engine", "mixz.c")
+LIB = os.path.join(HERE, "libmixz.so")
+PRIMER_DIR = os.path.join(HERE, "primers")
+
+MAGIC = b"MXZ"
+VERSION = 1
+M_STORED, M_CM = 0, 1
+T_NONE, T_E8E9, T_GZIP, T_PNG = 0, 1, 2, 3
+P_TEXT, P_BIN, P_IMAGE = 0, 1, 2
+PROFILE_NAMES = {P_TEXT: "text", P_BIN: "binary", P_IMAGE: "image"}
+TRANSFORM_NAMES = {T_NONE: "none", T_E8E9: "x86-e8e9", T_GZIP: "gzip-recompress", T_PNG: "png-recompress"}
+# Primer ids are part of the file format: append only, never reorder.
+PRIMER_IDS = ["", "py", "c", "js", "web", "json", "prose", "man", "elf"]
+TEXT_PRIMERS = ["py", "c", "js", "web", "json", "prose", "man"]
+BIN_PRIMERS = ["elf"]
+DEFAULT_MAXBITS = 20  # 2^20 buckets x 16 B per context table: ~128 MB peak model memory
+
+
+class MixzError(Exception):
+    pass
+
+
+# --------------------------------------------------------------------------
+# engine
+# --------------------------------------------------------------------------
+_lib = None
+
+
+def _build_engine() -> None:
+    cc = os.environ.get("CC", "cc")
+    err = b""
+    for flags in (["-O3", "-march=native"], ["-O3"], ["-O2"]):
+        r = subprocess.run([cc, *flags, "-fPIC", "-shared", "-fvisibility=hidden", "-o", LIB, SRC],
+                           capture_output=True)
+        if r.returncode == 0:
+            return
+        err = r.stderr
+    raise MixzError("could not build the engine (need a C compiler): " + err.decode(errors="replace"))
+
+
+def engine():
+    global _lib
+    if _lib is None:
+        if not os.path.exists(LIB) or os.path.getmtime(LIB) < os.path.getmtime(SRC):
+            _build_engine()
+        lib = ctypes.CDLL(LIB)
+        cp, sz, i = ctypes.c_char_p, ctypes.c_size_t, ctypes.c_int
+        lib.mz_compress.restype = ctypes.c_longlong
+        lib.mz_compress.argtypes = [cp, sz, cp, sz, i, i, i, i, cp, sz]
+        lib.mz_decompress.restype = i
+        lib.mz_decompress.argtypes = [cp, sz, cp, sz, i, i, i, i, cp, sz]
+        lib.mz_e8e9.restype = None
+        lib.mz_e8e9.argtypes = [cp, sz, i]
+        lib.mz_png_unfilter.restype = i
+        lib.mz_png_unfilter.argtypes = [cp, sz, sz, i, cp, cp]
+        lib.mz_png_refilter.restype = i
+        lib.mz_png_refilter.argtypes = [cp, cp, sz, sz, i, cp]
+        lib.mz_prime.restype = ctypes.c_void_p
+        lib.mz_prime.argtypes = [cp, sz, i, i, i, i, ctypes.c_ulonglong]
+        lib.mz_free_primed.restype = None
+        lib.mz_free_primed.argtypes = [ctypes.c_void_p]
+        lib.mz_size_class.restype = ctypes.c_uint
+        lib.mz_size_class.argtypes = [ctypes.c_ulonglong, i]
+        lib.mz_compress_primed.restype = ctypes.c_longlong
+        lib.mz_compress_primed.argtypes = [ctypes.c_void_p, cp, sz, sz, cp, sz]
+        lib.mz_decompress_primed.restype = i
+        lib.mz_decompress_primed.argtypes = [ctypes.c_void_p, cp, sz, sz, cp, sz]
+        _lib = lib
+    return _lib
+
+
+# Primed model snapshots: priming costs ~2 s per MB of primer, cloning a primed model
+# costs ~50 ms, so a batch of files with the same primer primes once. Output is identical.
+USE_SNAPSHOTS = False  # turned on for batches; a single file is cheaper without the extra copy
+_snaps: "OrderedDict" = OrderedDict()
+_snap_lock = threading.Lock()
+SNAP_CACHE = 3
+
+
+class _Snap:
+    def __init__(self, ptr):
+        self.ptr, self.users = ptr, 0
+
+
+def _acquire_snapshot(pid, profile, stride, bpp, maxbits, total):
+    lib = engine()
+    key = (pid, profile, stride, bpp, maxbits, lib.mz_size_class(total, maxbits))
+    with _snap_lock:
+        snap = _snaps.get(key)
+        if snap is None:
+            primer = primer_bytes(pid)
+            ptr = lib.mz_prime(primer, len(primer), profile, stride, bpp, maxbits, total)
+            if not ptr:
+                return None
+            snap = _Snap(ptr)
+            _snaps[key] = snap
+            for k in list(_snaps):  # evict idle snapshots beyond the cache size
+                if len(_snaps) <= SNAP_CACHE:
+                    break
+                if _snaps[k].users == 0 and k != key:
+                    lib.mz_free_primed(_snaps.pop(k).ptr)
+        _snaps.move_to_end(key)
+        snap.users += 1
+        return snap
+
+
+def _release_snapshot(snap):
+    with _snap_lock:
+        snap.users -= 1
+
+
+def cm_encode(data: bytes, profile: int, pid: int, stride: int, bpp: int, maxbits: int):
+    cap = len(data) + len(data) // 8 + 4096
+    out = ctypes.create_string_buffer(cap)
+    lib = engine()
+    primer = primer_bytes(pid) if pid else b""
+    r = -3
+    if primer and USE_SNAPSHOTS:
+        snap = _acquire_snapshot(pid, profile, stride, bpp, maxbits, len(data) + len(primer))
+        if snap:
+            try:
+                r = lib.mz_compress_primed(snap.ptr, data, len(data), len(primer), out, cap)
+            finally:
+                _release_snapshot(snap)
+    if r == -3:
+        r = lib.mz_compress(data, len(data), primer, len(primer), profile, stride, bpp, maxbits, out, cap)
+    if r == -2:
+        return None  # output would be larger than the input: not worth it
+    if r < 0:
+        raise MixzError("engine error (out of memory?)")
+    return out.raw[:r]
+
+
+def cm_decode(blob: bytes, n: int, profile: int, pid: int, stride: int, bpp: int, maxbits: int) -> bytes:
+    out = ctypes.create_string_buffer(max(n, 1))
+    lib = engine()
+    primer = primer_bytes(pid) if pid else b""
+    r = -3
+    if primer and USE_SNAPSHOTS:
+        snap = _acquire_snapshot(pid, profile, stride, bpp, maxbits, n + len(primer))
+        if snap:
+            try:
+                r = lib.mz_decompress_primed(snap.ptr, blob, len(blob), len(primer), out, n)
+            finally:
+                _release_snapshot(snap)
+    if r == -3:
+        r = lib.mz_decompress(blob, len(blob), primer, len(primer), profile, stride, bpp, maxbits, out, n)
+    if r != 0:
+        raise MixzError("engine error (out of memory?)")
+    return out.raw[:n]
+
+
+def e8e9(data: bytes, inverse: bool) -> bytes:
+    buf = ctypes.create_string_buffer(data, len(data))
+    engine().mz_e8e9(buf, len(data), 1 if inverse else 0)
+    return buf.raw[: len(data)]
+
+
+# --------------------------------------------------------------------------
+# primers
+# --------------------------------------------------------------------------
+_primers: dict = {}
+_zdicts: dict = {}
+
+
+def primer_bytes(pid: int) -> bytes:
+    if pid == 0:
+        return b""
+    if pid not in _primers:
+        path = os.path.join(PRIMER_DIR, PRIMER_IDS[pid] + ".bin")
+        try:
+            with open(path, "rb") as f:
+                _primers[pid] = f.read()
+        except OSError:
+            _primers[pid] = None
+    return _primers[pid]
+
+
+def primer_tag(pid: int) -> int:
+    return zlib.crc32(primer_bytes(pid) or b"") & 0xFFFF if pid else 0
+
+
+def available_primers(names) -> list:
+    out = []
+    for name in names:
+        pid = PRIMER_IDS.index(name)
+        if primer_bytes(pid):
+            out.append(pid)
+    return out
+
+
+def _sample(data: bytes, size: int = 65536) -> bytes:
+    if len(data) <= size:
+        return data
+    third = size // 3
+    mid = len(data) // 2
+    return data[:third] + data[mid: mid + third] + data[-third:]
+
+
+def choose_primer(data: bytes, candidates: list) -> int:
+    """Pick the primer that best predicts this file. Proxy: a fast LZ compressor using the
+    primer as a dictionary, on a sample of the file (milliseconds, vs ~1 s per CM trial).
+    Uses zstd when installed (whole primer as dictionary), else zlib (last 32 KB of it)."""
+    if not candidates:
+        return 0
+    sample = _sample(data)
+    try:
+        import zstandard
+
+        def size(pid):
+            if pid == 0:
+                return len(zstandard.ZstdCompressor(level=6).compress(sample))
+            if pid not in _zdicts:
+                _zdicts[pid] = zstandard.ZstdCompressionDict(
+                    primer_bytes(pid), dict_type=zstandard.DICT_TYPE_RAWCONTENT)
+            return len(zstandard.ZstdCompressor(level=6, dict_data=_zdicts[pid]).compress(sample))
+    except ImportError:
+        def size(pid):
+            c = zlib.compressobj(9, zlib.DEFLATED, 15, 9, 0, primer_bytes(pid)[-32768:]) if pid else zlib.compressobj(9)
+            return len(c.compress(sample) + c.flush())
+    best_pid, best = 0, size(0)
+    for pid in candidates:
+        sz = size(pid)
+        if sz < best * 0.99:
+            best_pid, best = pid, sz
+    return best_pid
+
+
+# --------------------------------------------------------------------------
+# format detection
+# --------------------------------------------------------------------------
+def text_score(sample: bytes) -> float:
+    if not sample:
+        return 0.0
+    bad = sum(sample.count(bytes([b])) for b in list(range(0, 9)) + [11, 12] + list(range(14, 32)) + [127])
+    return 1.0 - bad / len(sample)
+
+
+def x86_executable(data: bytes) -> bool:
+    if data[:4] == b"\x7fELF" and len(data) > 20:
+        endian = "<" if data[5] == 1 else ">"
+        machine = struct.unpack(endian + "H", data[18:20])[0]
+        return machine in (3, 62)  # EM_386, EM_X86_64
+    if data[:2] == b"MZ" and len(data) > 0x40:
+        off = struct.unpack("<I", data[0x3C:0x40])[0]
+        if data[off: off + 4] == b"PE\0\0":
+            machine = struct.unpack("<H", data[off + 4: off + 6])[0]
+            return machine in (0x14C, 0x8664)
+    return False
+
+
+def looks_incompressible(data: bytes) -> bool:
+    sample = _sample(data, 1 << 18)
+    try:
+        import zstandard
+        c = len(zstandard.ZstdCompressor(level=1).compress(sample))
+    except ImportError:
+        c = len(zlib.compress(sample, 1))
+    return c > 0.97 * len(sample)
+
+
+# --------------------------------------------------------------------------
+# bit-exact deflate re-creation
+# --------------------------------------------------------------------------
+def find_deflate_params(raw: bytes, comp: bytes, wbits: int, level_hint=None):
+    """Find zlib (level, memLevel, strategy) that reproduce `comp` from `raw` exactly.
+    Streams output incrementally and aborts a candidate at its first mismatching byte."""
+    levels = list(level_hint or []) + [l for l in (9, 6, 1, 2, 3, 4, 5, 7, 8) if l not in (level_hint or [])]
+    for strategy in (0, 1):
+        for mem in (8, 9, 7, 6, 5, 4, 3, 2, 1):
+            for level in levels:
+                c = zlib.compressobj(level, zlib.DEFLATED, wbits, mem, strategy)
+                out = bytearray()
+                ok = True
+                for i in range(0, len(raw), 1 << 16):
+                    out += c.compress(raw[i: i + (1 << 16)])
+                    if out != comp[: len(out)]:
+                        ok = False
+                        break
+                if not ok:
+                    continue
+                out += c.flush()
+                if out == comp:
+                    return level, mem, strategy
+            if mem == 9 and strategy == 0 and wbits < 0:
+                break  # gzip: other memLevels essentially never occur
+    return None
+
+
+def deflate(raw: bytes, level: int, mem: int, strategy: int, wbits: int) -> bytes:
+    c = zlib.compressobj(level, zlib.DEFLATED, wbits, mem, strategy)
+    return c.compress(raw) + c.flush()
+
+
+# --------------------------------------------------------------------------
+# varints
+# --------------------------------------------------------------------------
+def put_varint(n: int) -> bytes:
+    out = bytearray()
+    while True:
+        b = n & 0x7F
+        n >>= 7
+        if n:
+            out.append(b | 0x80)
+        else:
+            out.append(b)
+            return bytes(out)
+
+
+def get_varint(buf: bytes, p: int):
+    n = shift = 0
+    while True:
+        if p >= len(buf):
+            raise MixzError("truncated header")
+        b = buf[p]
+        p += 1
+        n |= (b & 0x7F) << shift
+        shift += 7
+        if not b & 0x80:
+            return n, p
+
+
+# --------------------------------------------------------------------------
+# transforms
+# --------------------------------------------------------------------------
+@dataclass
+class Plan:
+    transform: int
+    profile: int
+    stream: bytes
+    stride: int = 0
+    bpp: int = 1
+    meta: bytes = b""
+    primer: int = 0
+    note: str = ""
+
+
+def gzip_forward(data: bytes):
+    if len(data) < 18 or data[:3] != b"\x1f\x8b\x08":
+        return None
+    flg = data[3]
+    p = 10
+    try:
+        if flg & 4:
+            p += 2 + struct.unpack("<H", data[p: p + 2])[0]
+        if flg & 8:
+            p = data.index(b"\0", p) + 1
+        if flg & 16:
+            p = data.index(b"\0", p) + 1
+        if flg & 2:
+            p += 2
+        d = zlib.decompressobj(-15)
+        raw = d.decompress(data[p:])
+        if not d.eof:
+            return None
+    except (ValueError, zlib.error, struct.error):
+        return None
+    tail = d.unused_data
+    comp = data[p: len(data) - len(tail)]
+    if len(tail) - 8 > 65536:
+        return None  # multi-member archives: not handled in the MVP
+    params = find_deflate_params(raw, comp, -15)
+    if params is None:
+        return None
+    trailer, rest = tail[:8], tail[8:]
+    std = trailer == struct.pack("<II", zlib.crc32(raw), len(raw) & 0xFFFFFFFF)
+    meta = bytes(params) + put_varint(p) + data[:p] + bytes([1 if std else 0])
+    if not std:
+        meta += put_varint(len(trailer)) + trailer
+    meta += rest
+    return raw, meta
+
+
+def gzip_inverse(raw: bytes, meta: bytes) -> bytes:
+    level, mem, strategy = meta[0], meta[1], meta[2]
+    hlen, q = get_varint(meta, 3)
+    header = meta[q: q + hlen]
+    q += hlen
+    std = meta[q]
+    q += 1
+    if std:
+        trailer = struct.pack("<II", zlib.crc32(raw), len(raw) & 0xFFFFFFFF)
+    else:
+        tlen, q = get_varint(meta, q)
+        trailer = meta[q: q + tlen]
+        q += tlen
+    return header + deflate(raw, level, mem, strategy, -15) + trailer + meta[q:]
+
+
+PNG_SIG = b"\x89PNG\r\n\x1a\n"
+
+
+def png_chunks(data: bytes):
+    p = 8
+    out = []
+    while p + 12 <= len(data):
+        ln = struct.unpack(">I", data[p: p + 4])[0]
+        typ = data[p + 4: p + 8]
+        body = data[p + 8: p + 8 + ln]
+        crc = data[p + 8 + ln: p + 12 + ln]
+        if len(body) != ln or len(crc) != 4:
+            return None, p
+        out.append((typ, body, crc))
+        p += 12 + ln
+        if typ == b"IEND":
+            break
+    return out, p
+
+
+def png_build(chunks) -> bytes:
+    out = bytearray(PNG_SIG)
+    for typ, body in chunks:
+        out += struct.pack(">I", len(body)) + typ + body + struct.pack(">I", zlib.crc32(typ + body))
+    return bytes(out)
+
+
+def png_forward(data: bytes):
+    if not data.startswith(PNG_SIG):
+        return None
+    chunks, end = png_chunks(data)
+    if not chunks or chunks[0][0] != b"IHDR" or chunks[-1][0] != b"IEND":
+        return None
+    if any(zlib.crc32(t + b) != struct.unpack(">I", c)[0] for t, b, c in chunks):
+        return None
+    w, h, depth, ctype, _, _, interlace = struct.unpack(">IIBBBBB", chunks[0][1][:13])
+    channels = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}.get(ctype)
+    if channels is None or interlace or w == 0 or h == 0:
+        return None
+    bits = channels * depth
+    rowbytes = (w * bits + 7) // 8
+    bpp = max(1, bits // 8)
+    idx = [i for i, c in enumerate(chunks) if c[0] == b"IDAT"]
+    if not idx or idx != list(range(idx[0], idx[-1] + 1)):
+        return None
+    z = b"".join(chunks[i][1] for i in idx)
+    try:
+        d = zlib.decompressobj()
+        raw = d.decompress(z)
+        if not d.eof or d.unused_data:
+            return None
+    except zlib.error:
+        return None
+    if len(raw) != h * (rowbytes + 1):
+        return None
+    wbits = (z[0] >> 4) + 8
+    hint = {0: [1], 1: [2, 3, 4, 5], 2: [6], 3: [7, 8, 9]}[z[1] >> 6]
+    params = find_deflate_params(raw, z, wbits, hint)
+    if params is None:
+        return None
+    pix = ctypes.create_string_buffer(h * rowbytes)
+    types = ctypes.create_string_buffer(h)
+    if engine().mz_png_unfilter(raw, h, rowbytes, bpp, pix, types) != 0:
+        return None
+    meta = {
+        "pre": [[c[0].decode("latin-1"), base64.b64encode(c[1]).decode()] for c in chunks[: idx[0]]],
+        "post": [[c[0].decode("latin-1"), base64.b64encode(c[1]).decode()] for c in chunks[idx[-1] + 1:]],
+        "idat": [len(chunks[i][1]) for i in idx],
+        "zp": list(params) + [wbits],
+        "h": h, "rowbytes": rowbytes, "bpp": bpp,
+        "types": base64.b64encode(types.raw[:h]).decode(),
+        "tail": base64.b64encode(data[end:]).decode(),
+    }
+    return pix.raw[: h * rowbytes], zlib.compress(json.dumps(meta, separators=(",", ":")).encode(), 9), rowbytes, bpp
+
+
+def png_inverse(pix: bytes, meta_blob: bytes) -> bytes:
+    meta = json.loads(zlib.decompress(meta_blob))
+    h, rowbytes, bpp = meta["h"], meta["rowbytes"], meta["bpp"]
+    types = base64.b64decode(meta["types"])
+    if len(types) != h or len(pix) != h * rowbytes or not 1 <= bpp <= 8 or any(t > 4 for t in types):
+        raise MixzError("corrupt PNG metadata")
+    raw = ctypes.create_string_buffer(h * (rowbytes + 1))
+    engine().mz_png_refilter(pix, types, h, rowbytes, bpp, raw)
+    level, mem, strategy, wbits = meta["zp"]
+    z = deflate(raw.raw, level, mem, strategy, wbits)
+    chunks = [(t.encode("latin-1"), base64.b64decode(b)) for t, b in meta["pre"]]
+    p = 0
+    for size in meta["idat"]:
+        chunks.append((b"IDAT", z[p: p + size]))
+        p += size
+    chunks += [(t.encode("latin-1"), base64.b64decode(b)) for t, b in meta["post"]]
+    return png_build(chunks) + base64.b64decode(meta["tail"])
+
+
+def inverse_transform(transform: int, stream: bytes, meta: bytes) -> bytes:
+    if transform == T_NONE:
+        return stream
+    if transform == T_E8E9:
+        return e8e9(stream, inverse=True)
+    if transform == T_GZIP:
+        return gzip_inverse(stream, meta)
+    if transform == T_PNG:
+        return png_inverse(stream, meta)
+    raise MixzError(f"unknown transform {transform}")
+
+
+def plan_for_plain(data: bytes, note: str = "") -> Plan:
+    sample = _sample(data)
+    if x86_executable(data):
+        stream = e8e9(data, inverse=False)
+        return Plan(T_E8E9, P_BIN, stream, primer=choose_primer(stream, available_primers(BIN_PRIMERS)),
+                    note=note or "x86 executable")
+    if text_score(sample) > 0.97:
+        return Plan(T_NONE, P_TEXT, data, primer=choose_primer(data, available_primers(TEXT_PRIMERS)),
+                    note=note or "text")
+    return Plan(T_NONE, P_BIN, data, primer=choose_primer(data, available_primers(BIN_PRIMERS)),
+                note=note or "binary")
+
+
+def make_plan(data: bytes):
+    """Return a Plan, or None when the data should simply be stored."""
+    if data.startswith(PNG_SIG):
+        r = png_forward(data)
+        if r:
+            pix, meta, rowbytes, bpp = r
+            return Plan(T_PNG, P_IMAGE, pix, stride=rowbytes, bpp=bpp, meta=meta, note="png (re-created bit-exact)")
+    if data[:3] == b"\x1f\x8b\x08":
+        r = gzip_forward(data)
+        if r:
+            raw, meta = r
+            inner = plan_for_plain(raw)
+            if inner.transform == T_NONE:
+                return Plan(T_GZIP, inner.profile, raw, meta=meta, primer=inner.primer,
+                            note=f"gzip (re-created bit-exact) of {inner.note}")
+    # skip the (slow) model on data that is already compressed or random; small files and
+    # text always get a real attempt, since a primer can help where generic tests say no
+    if len(data) >= 4096 and text_score(_sample(data)) <= 0.97 and looks_incompressible(data):
+        return None
+    return plan_for_plain(data)
+
+
+# --------------------------------------------------------------------------
+# container
+# --------------------------------------------------------------------------
+def _stored(data: bytes, crc: int) -> bytes:
+    return MAGIC + bytes([VERSION, M_STORED]) + put_varint(len(data)) + struct.pack("<I", crc) + data
+
+
+def compress(data: bytes, maxbits: int = DEFAULT_MAXBITS, use_primers: bool = True, verify: bool = False) -> bytes:
+    out = _compress(data, maxbits, use_primers)
+    if verify and decompress(out) != data:  # decompress also checks the CRC
+        raise MixzError("verification failed: please report this file")
+    return out
+
+
+def _compress(data: bytes, maxbits: int, use_primers: bool) -> bytes:
+    crc = zlib.crc32(data)
+    if len(data) < 16:
+        return _stored(data, crc)
+    plan = make_plan(data)
+    if plan is None:
+        return _stored(data, crc)
+    if not use_primers:
+        plan.primer = 0
+    # safety: the transform must rebuild the original bytes exactly, else code the raw bytes
+    if plan.transform != T_NONE and inverse_transform(plan.transform, plan.stream, plan.meta) != data:
+        prof = P_TEXT if text_score(_sample(data)) > 0.97 else P_BIN
+        plan = Plan(T_NONE, prof, data, primer=0, note="transform check failed; coded raw")
+    payload = cm_encode(plan.stream, plan.profile, plan.primer, plan.stride, plan.bpp, maxbits)
+    if payload is None:
+        return _stored(data, crc)
+    flags = plan.profile | (plan.transform << 2) | ((1 << 5) if plan.meta else 0)
+    head = bytearray(MAGIC + bytes([VERSION, M_CM]) + put_varint(len(data)) + struct.pack("<I", crc))
+    head += bytes([flags, plan.primer]) + struct.pack("<H", primer_tag(plan.primer)) + bytes([maxbits])
+    if plan.profile == P_IMAGE:
+        head += put_varint(plan.stride) + put_varint(plan.bpp)
+    if plan.transform != T_NONE:
+        head += put_varint(len(plan.stream))
+    if plan.meta:
+        head += put_varint(len(plan.meta)) + plan.meta
+    out = bytes(head) + payload
+    if len(out) >= len(data) + 9:
+        return _stored(data, crc)
+    return out
+
+
+@dataclass
+class Header:
+    method: int
+    size: int
+    crc: int
+    profile: int = 0
+    transform: int = 0
+    primer: int = 0
+    primer_tag: int = 0
+    maxbits: int = DEFAULT_MAXBITS
+    stride: int = 0
+    bpp: int = 1
+    stream_len: int = 0
+    meta: bytes = b""
+    payload_at: int = 0
+
+
+def parse_header(blob: bytes) -> Header:
+    if blob[:3] != MAGIC:
+        raise MixzError("not a mixz file")
+    if len(blob) < 5 or blob[3] != VERSION:
+        raise MixzError("unsupported mixz version")
+    method = blob[4]
+    size, p = get_varint(blob, 5)
+    crc = struct.unpack("<I", blob[p: p + 4])[0]
+    p += 4
+    h = Header(method, size, crc)
+    if method == M_STORED:
+        h.payload_at = p
+        return h
+    if method != M_CM:
+        raise MixzError("unknown method")
+    flags = blob[p]
+    h.profile, h.transform = flags & 3, (flags >> 2) & 7
+    h.primer = blob[p + 1]
+    h.primer_tag = struct.unpack("<H", blob[p + 2: p + 4])[0]
+    h.maxbits = blob[p + 4]
+    p += 5
+    if h.profile == P_IMAGE:
+        h.stride, p = get_varint(blob, p)
+        h.bpp, p = get_varint(blob, p)
+    h.stream_len = size
+    if h.transform != T_NONE:
+        h.stream_len, p = get_varint(blob, p)
+    if flags & (1 << 5):
+        mlen, p = get_varint(blob, p)
+        h.meta = blob[p: p + mlen]
+        p += mlen
+    h.payload_at = p
+    return h
+
+
+def decompress(blob: bytes) -> bytes:
+    try:
+        return _decompress(blob)
+    except MixzError:
+        raise
+    except Exception as e:  # corrupt header/meta: report, never return wrong data
+        raise MixzError(f"corrupt file ({e.__class__.__name__}: {e})") from None
+
+
+def _decompress(blob: bytes) -> bytes:
+    h = parse_header(blob)
+    if h.method == M_STORED:
+        data = blob[h.payload_at: h.payload_at + h.size]
+    else:
+        if h.primer:
+            if h.primer >= len(PRIMER_IDS) or not primer_bytes(h.primer):
+                raise MixzError("missing primer '%s'" % (PRIMER_IDS[h.primer] if h.primer < len(PRIMER_IDS) else h.primer))
+            if primer_tag(h.primer) != h.primer_tag:
+                raise MixzError("primer '%s' differs from the one used to compress" % PRIMER_IDS[h.primer])
+        stream = cm_decode(blob[h.payload_at:], h.stream_len, h.profile, h.primer, h.stride, h.bpp, h.maxbits)
+        data = inverse_transform(h.transform, stream, h.meta)
+    if len(data) != h.size or zlib.crc32(data) != h.crc:
+        raise MixzError("CRC mismatch: data is corrupt")
+    return data
+
+
+# --------------------------------------------------------------------------
+# CLI
+# --------------------------------------------------------------------------
+def describe(blob: bytes) -> str:
+    try:
+        h = parse_header(blob)
+    except (struct.error, IndexError) as e:
+        raise MixzError(f"corrupt header ({e})") from None
+    if h.method == M_STORED:
+        return f"stored  size={h.size}"
+    return (f"cm  size={h.size} -> {len(blob)} ({len(blob) / max(h.size, 1):.1%})  profile={PROFILE_NAMES[h.profile]}  "
+            f"transform={TRANSFORM_NAMES[h.transform]}  primer={PRIMER_IDS[h.primer] or 'none'}")
+
+
+def _job(args, path):
+    t = time.time()
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+        if args.cmd == "c":
+            out = compress(data, maxbits=args.maxbits, use_primers=not args.no_primer, verify=args.verify)
+            dst = args.output or path + ".mxz"
+            msg = f"{path}: {len(data)} -> {len(out)} ({len(out) / max(len(data), 1):.1%})"
+        elif args.cmd == "d":
+            out = decompress(data)
+            dst = args.output or (path[:-4] if path.endswith(".mxz") else path + ".out")
+            msg = f"{path}: -> {dst} ({len(out)} bytes)"
+        elif args.cmd == "t":
+            decompress(data)
+            return f"{path}: OK", True
+        else:
+            return f"{path}: {describe(data)}", True
+        if os.path.exists(dst) and not args.force:
+            return f"{path}: {dst} exists (use -f to overwrite)", False
+        with open(dst, "wb") as f:
+            f.write(out)
+        return f"{msg}  [{time.time() - t:.2f}s]", True
+    except (OSError, MixzError) as e:
+        return f"{path}: error: {e}", False
+
+
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser(prog="mixz", description="format-aware context-mixing compressor")
+    ap.add_argument("cmd", choices=["c", "d", "t", "info"], help="c=compress d=decompress t=test info=describe")
+    ap.add_argument("files", nargs="+")
+    ap.add_argument("-o", "--output", help="output path (single input only)")
+    ap.add_argument("-f", "--force", action="store_true", help="overwrite existing outputs")
+    ap.add_argument("-j", "--jobs", type=int, default=os.cpu_count() or 1, help="files processed in parallel")
+    ap.add_argument("--maxbits", type=int, default=DEFAULT_MAXBITS,
+                    help="model size cap: 2^N buckets per context (16..24, default 20 = ~128 MB)")
+    ap.add_argument("--no-primer", action="store_true", help="do not use per-format primers")
+    ap.add_argument("--verify", action="store_true", help="decompress after compressing and compare (2x slower)")
+    args = ap.parse_args(argv)
+    if args.output and len(args.files) > 1:
+        ap.error("-o needs a single input file")
+    engine()
+    global USE_SNAPSHOTS
+    USE_SNAPSHOTS = len(args.files) > 1
+    ok = True
+    with ThreadPoolExecutor(max_workers=max(1, args.jobs)) as ex:
+        for msg, good in ex.map(lambda p: _job(args, p), args.files):
+            print(msg, file=sys.stdout if good else sys.stderr)
+            ok &= good
+    return 0 if ok else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,44 @@
+{
+ "time": "2026-11-01 19:48:00",
+ "kind": "py",
+ "files": 38,
+ "bytes": 524286,
+ "cpu": 3,
+ "tools": {
+  "gzip -9": {
+   "size": 113573,
+   "compress_cpu_s": 0.05869550000000001,
+   "decompress_cpu_s": 0.001571326693227092
+  },
+  "xz -9e": {
+   "size": 96972,
+   "compress_cpu_s": 0.17715550000000024,
+   "decompress_cpu_s": 0.004069711864406788
+  },
+  "zstd -19": {
+   "size": 100156,
+   "compress_cpu_s": 0.17972549999999998,
+   "decompress_cpu_s": 0.0005513500678426064
+  },
+  "brotli -q11": {
+   "size": 94359,
+   "compress_cpu_s": 0.9414609999999985,
+   "decompress_cpu_s": 0.0012507314814814803
+  },
+  "mixz": {
+   "size": 74718,
+   "compress_cpu_s": 0.761573000000002,
+   "decompress_cpu_s": 0.7778670000000005
+  },
+  "paq8px -8": {
+   "size": 59328,
+   "compress_cpu_s": 78.92071399999999,
+   "decompress_cpu_s": 78.687045
+  },
+  "zpaq -m5": {
+   "size": 76898,
+   "compress_cpu_s": 1.3594970000000002,
+   "decompress_cpu_s": 1.393046
+  }
+ }
+}
