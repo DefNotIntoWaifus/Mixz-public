@@ -33,7 +33,7 @@ What was kept: learning per file type what typical content looks like. That beca
 
 ## 2. What was built (the MVP)
 
-A format-aware context-mixing (CM) compressor. Context mixing means several models each predict the next bit, and a small neural network (the mixer) combines their predictions. The design is in `README.md` section 5. In short:
+A format-aware context-mixing (CM) compressor. Context mixing means several models each predict the next bit, and a small neural network (the mixer) combines their predictions. The design:
 
 **Engine (`engine/mixz.c` in the MVP, now `engine/cm.c`; C, integer-only, deterministic):**
 - **Models:**

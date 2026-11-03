@@ -7,7 +7,7 @@ mixz is an experimental lossless, format-aware context-mixing compressor. This r
 ## How to work
 - Be direct and technically precise. State an assumption instead of asking a question it answers.
 - Label how certain each claim is: measured, tested, or estimate. Mark example numbers as examples.
-- Documents that explain the project (the README, `docs/context.md`) assume no prior knowledge, define every technical term and use literal language. Every README section is split into Summary / Details / Certainty.
+- `docs/context.md` assumes no prior knowledge, defines every technical term and uses literal language. The README is short and has the same content in three blocks: English, Spanish and Chinese. Edit all three together; details go in `docs/context.md`.
 
 ## First thing on a new machine
 The measurements were made on an x86-64 Linux VM (Ubuntu 24.04, Intel Xeon, 2 cores, AVX-512) and, since 2026-10-23, on an AMD Ryzen 3 1200 desktop (4 cores, AVX2, Arch Linux, gcc 15.2). On whatever machine Claude Code runs:

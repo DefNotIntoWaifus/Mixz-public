@@ -2,7 +2,7 @@
 
 A primer is a sample of typical content for one file type. Before a file is coded, the compressor
 and the decompressor both run the model over the primer, so the model starts with knowledge of that
-file type (see `README.md`, section 5).
+file type (`docs/context.md` section 2).
 
 This release ships **no primers**. The development primers were built from system files with many
 different licenses, so they cannot be published. Every file this release writes uses no primer, and
