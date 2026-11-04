@@ -8,6 +8,7 @@ mixz is an experimental lossless, format-aware context-mixing compressor. This r
 - Be direct and technically precise. State an assumption instead of asking a question it answers.
 - Label how certain each claim is: measured, tested, or estimate. Mark example numbers as examples.
 - `docs/context.md` assumes no prior knowledge, defines every technical term and uses literal language. The README is short and has the same content in three blocks: English, Spanish and Chinese. Edit all three together; details go in `docs/context.md`.
+- `python/` is the same compressor in Python only (`mixz_py`), for readers who do not know C. It must keep producing the same files: an engine, transform or format change is made in both, and `python3 python/test_python.py` (the vectors, ~8 min; `--quick` ~4 min; `--c` also compares with the C engine, +3 min) must pass.
 
 ## First thing on a new machine
 The measurements were made on an x86-64 Linux VM (Ubuntu 24.04, Intel Xeon, 2 cores, AVX-512) and, since 2026-10-23, on an AMD Ryzen 3 1200 desktop (4 cores, AVX2, Arch Linux, gcc 15.2). On whatever machine Claude Code runs:
@@ -47,6 +48,7 @@ python3 mixz.py c FILE | d FILE.mxz | t FILE.mxz | info FILE.mxz
 python3 mixz.py serve                  # keep models loaded; c/d/t use it (same output); --no-server bypasses it
 python3 tools/test_roundtrip.py        # full round-trip and robustness suite (~20 s)
 python3 tests/check_vectors.py         # determinism check against the committed codec 3 vectors
+python3 python/test_python.py          # the Python-only version against the same vectors (--quick, --c)
 python3 tools/harness/run.py           # benchmark harness, quick tier (~3-5 min); --tier full (~20 min), --one-core, --save-baseline, --ab REV, --engine-only, --reference
 python3 tools/harness/fetch.py         # download/verify the harness test data (run.py does this itself)
 python3 tools/harness/reference.py     # paq8px -8 and zpaq -m5 sizes for the harness (pinned sources; hours for the full tier)
@@ -70,6 +72,7 @@ tools/harness/           benchmark harness: pinned sources, frozen test set, run
 tools/tuner/             tuning data (train/valid splits, disjoint from the harness) and variants.py, which measures codec variants per kind
 tools/mind/              public-domain corpus tools for the planned primers (step 7)
 results/harness/         harness baselines per machine (runs/ stays local)
+python/                  mixz_py: the whole compressor in Python only (same files, ~400x slower) and test_python.py
 results/compare/         compare_reference.py and speed_compare.py results, and a reviewer's run with the development primers
 ```
 

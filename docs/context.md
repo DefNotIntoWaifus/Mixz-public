@@ -923,6 +923,17 @@ Sections 3.1–3.4 were measured on the VM. This section is measured with the pl
 - paq8px -8 given `mixz`'s primer (its output for primer and files minus its output for the primer alone): 22.5% smaller than a `mixz` bundle on Python, 29.9% on JSON.
 - The json, web and prose sets there are other subsets of the harness files than this section's, so only py, js and logs are directly comparable.
 
+### 3.7 Python-only version (2026-11-03)
+
+**Why:** readers who do not know C can read the whole method. `python/mixz_py` is a port of `mixz.py` (without the server, snapshots, workers and threads, which only make it faster) and of every C part: `engine/cm.c` (`codec.py`), `engine/transform.c` (`transform.py`) and zlib 1.3.1's compressor (`deflate.py`, the parts of `deflate.c` and `trees.c` for levels 1–9, raw and zlib wrapper, all five strategies). It uses `registry.json` and `primers/` of the repository.
+
+**Measured:**
+- Same output as the C version: `python/test_python.py` decompresses every committed vector (made by the C version) and compresses each original to the identical file. With `--c` it also compares the codec in all five engine profiles, deflate in 720 settings on 3 inputs, files with every transform and block splitting, and bundles. A separate run compared deflate in 3,975 cases (7 inputs up to 80 KB, levels 1–9, memory levels 1–9, strategies 0–4, window bits −15, −9, 9, 15, and 64 KB chunked input): all identical.
+- Speed on one core, CPU time, a 20 KB Python file: 1.38 KB/s compress and 1.37 KB/s decompress, against 496 and 518 KB/s for the C version: about 360 times slower (the C version reaches 690 KB/s on larger inputs, section 3.6).
+- Python's deflate is slow on low-entropy data at high levels (long hash chains): 845 s for 70 KB of random `a`/`b` bytes across 186 settings.
+
+**Rule:** an engine, transform or format change must be made in both versions (`CLAUDE.md`).
+
 ---
 
 ## 4. Correctness and safety

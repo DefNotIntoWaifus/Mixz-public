@@ -25,7 +25,7 @@ python3 mixz.py d file.mxz       # -> file
 python3 tools/test_roundtrip.py  # tests
 ```
 
-Requires Linux on x86-64, Python 3.9 or newer (tested on 3.13 and 3.14) and a C compiler. Measured on an AMD Ryzen 3 1200, 2026-11-01. The full results and the design are in `docs/context.md`. License: Apache-2.0.
+Requires Linux on x86-64, Python 3.9 or newer (tested on 3.13 and 3.14) and a C compiler. Measured on an AMD Ryzen 3 1200, 2026-11-01. The full results and the design are in `docs/context.md`. `python/` has the same compressor in Python only, for reading without knowing C: same files, about 400 times slower. License: Apache-2.0.
 
 ## Español
 
@@ -50,7 +50,7 @@ python3 mixz.py d archivo.mxz      # -> archivo
 python3 tools/test_roundtrip.py    # pruebas
 ```
 
-Requiere Linux en x86-64, Python 3.9 o posterior (probado en 3.13 y 3.14) y un compilador de C. Medido en un AMD Ryzen 3 1200 el 1 de noviembre de 2026. Los resultados completos y el diseño están en `docs/context.md` (en inglés). Licencia: Apache-2.0.
+Requiere Linux en x86-64, Python 3.9 o posterior (probado en 3.13 y 3.14) y un compilador de C. Medido en un AMD Ryzen 3 1200 el 1 de noviembre de 2026. Los resultados completos y el diseño están en `docs/context.md` (en inglés). En `python/` está el mismo compresor solo en Python, para leerlo sin saber C: mismos archivos, unas 400 veces más lento. Licencia: Apache-2.0.
 
 ## 中文
 
@@ -75,4 +75,4 @@ python3 mixz.py d file.mxz       # -> file
 python3 tools/test_roundtrip.py  # 测试
 ```
 
-需要 x86-64 Linux、Python 3.9 或更新版本（已在 3.13 和 3.14 上测试）以及 C 编译器。测量环境：AMD Ryzen 3 1200，2026-11-01。完整结果和设计见 `docs/context.md`（英文）。许可证：Apache-2.0。
+需要 x86-64 Linux、Python 3.9 或更新版本（已在 3.13 和 3.14 上测试）以及 C 编译器。测量环境：AMD Ryzen 3 1200，2026-11-01。完整结果和设计见 `docs/context.md`（英文）。`python/` 中是纯 Python 版本的同一个压缩器，不懂 C 也能阅读：文件相同，速度慢约 400 倍。许可证：Apache-2.0。
